@@ -8,6 +8,9 @@ let toastDict;
 
 let stored = null;
 
+const basename = path =>
+    path.split('/').pop().split('.').shift();
+
 const retrieveQueryDict = () => {
     const urlSearchParams = new URLSearchParams(window.location.search);
     return Object.fromEntries(urlSearchParams.entries());
@@ -104,19 +107,11 @@ const parseJson = (term = '', ignore_case = false) => {
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 ctx.drawImage(img, 0, 0);
-                canvas.toBlob(async (blob) => {
-                    try {
-                        const item = new ClipboardItem({
-                            'image/png': blob
-                        });
-                        await navigator.clipboard.write([item]);
-                        toastDict['toast-copied'].show();
-                    } catch (error) {
-                        if (error.message == 'ClipboardItem is not defined') {
-                            toastDict['toast-clipboard-item'].show();
-                        }
-                    }
-                });
+
+                const a = document.createElement("a");
+                a.href = canvas.toDataURL("image/png");
+                a.setAttribute("download", basename(element.path) + ".png");
+                a.dispatchEvent(new MouseEvent("click"));
             };
 
             img.onload = () => {
@@ -152,7 +147,7 @@ const parseJson = (term = '', ignore_case = false) => {
             img.alt = element.path;
             img.className = 'img-thumbnail';
             img.crossOrigin = "anonymous";
-            img.title = element.path;
+            img.title = basename(element.path);
             img.src = element.path;
         });
     }
@@ -166,9 +161,6 @@ window.addEventListener('DOMContentLoaded', _ => {
         }),
         'toast-input-keyword': new bootstrap.Toast(document.getElementById('toast-input-keyword'), {
             delay: 2000,
-        }),
-        'toast-clipboard-item': new bootstrap.Toast(document.getElementById('toast-clipboard-item'), {
-            autohide: false
         })
     };
 
