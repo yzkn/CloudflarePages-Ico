@@ -1,0 +1,34 @@
+{
+  "background_color": "#ffffff",
+  "description": "Ico",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Ico",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Ico",
+  "start_url": "/",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "image/ico.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "image/ico_64x64.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "image/ico_128x128.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "image/ico_256x256.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

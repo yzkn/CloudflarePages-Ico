@@ -1,0 +1,26 @@
+/* Copyright (c) 2023 YA All rights reserved. */
+
+
+.alert {
+    display: none;
+}
+
+.alert.show {
+    display: block;
+}
+
+.img-thumbnail {
+    height: 64px;
+    width: 64px;
+
+    max-height: 64px;
+    max-width: 64px;
+}
+
+.spinner-hidden {
+    display: none;
+}
+
+#icon-search {
+    width: 140px;
+}
