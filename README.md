@@ -4,7 +4,7 @@ for deploying to Cloudflare Pages
 
 ---
 
-![Preview](preview.png "Preview")
+![Preview](https://raw.githubusercontent.com/YA-androidapp/CloudflarePages-Ico/main/preview/preview.png "Preview")
 
 ---
 
