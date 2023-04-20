@@ -2,6 +2,7 @@
 
 
 const apiUri = 'list.json';
+const DEFAULT_SIZE = 512;
 
 let queries;
 let toastDict;
@@ -108,7 +109,8 @@ const parseJson = (term = '', ignore_case = false) => {
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, 0, 0);
 
-                if (event.ctrlKey) {
+                if (event.ctrlKey && (img.src).endsWith('.png')) {
+                    // PNG形式の画像をクリップボードにコピー
                     canvas.toBlob(async (blob) => {
                         try {
                             const item = new ClipboardItem({
@@ -122,14 +124,43 @@ const parseJson = (term = '', ignore_case = false) => {
                             }
                         }
                     });
+                } else if (event.ctrlKey && (img.src).endsWith('.svg')) {
+                    // SVGから変換したPNG形式の画像をクリップボードにコピー
+                    canvas.toBlob(async (blob) => {
+                        try {
+                            const item = new ClipboardItem({
+                                'image/png': blob
+                            });
+                            await navigator.clipboard.write([item]);
+                            toastDict['toast-copied-png'].show();
+                        } catch (error) {
+                            if (error.message == 'ClipboardItem is not defined') {
+                                toastDict['toast-clipboard-item'].show();
+                            }
+                        }
+                    });
+                } else if (event.shiftKey && (img.src).endsWith('.png')) {
+                    // PNG形式のData URL
+                    const dataURL = canvas.toDataURL();
+
+                    try {
+                        const item = new ClipboardItem({ 'text/plain': dataURL });
+                        navigator.clipboard.write([item]);
+                        toastDict['toast-copied-dataurl'].show();
+                    } catch (error) {
+                        if (error.message == 'ClipboardItem is not defined') {
+                            toastDict['toast-clipboard-item'].show();
+                        }
+                    }
                 } else if (event.shiftKey && (img.src).endsWith('.svg')) {
+                    // SVGのソース
                     fetch(img.src)
                         .then(function (response) {
                             return response.text();
                         }).then(async (svg) => {
                             try {
-                                const blob = new Blob([svg], { type: "text/plain" });
-                                const item = new ClipboardItem({ "text/plain": blob });
+                                const blob = new Blob([svg], { type: 'text/plain' });
+                                const item = new ClipboardItem({ 'text/plain': blob });
                                 await navigator.clipboard.write([item]);
                                 toastDict['toast-copied-svg'].show();
                             } catch (error) {
@@ -139,17 +170,18 @@ const parseJson = (term = '', ignore_case = false) => {
                             }
                         })
                 } else {
-                    const a = document.createElement("a");
-                    a.href = canvas.toDataURL("image/png");
-                    a.setAttribute("download", basename(element.path) + ".png");
-                    a.dispatchEvent(new MouseEvent("click"));
+                    // PNGファイルダウンロード
+                    const a = document.createElement('a');
+                    a.href = canvas.toDataURL('image/png');
+                    a.setAttribute('download', basename(element.path) + '.png');
+                    a.dispatchEvent(new MouseEvent('click'));
                 }
             };
 
             img.onload = () => {
                 const width = img.naturalWidth;
                 const height = img.naturalHeight;
-                const imgSize = String(width) + 'x' + String(height);
+                const imgSize = (width > 0 && height > 0) ? String(width) + 'x' + String(height) : '';
 
                 let captionBox = document.createElement('div');
                 captionBox.classList.add('position-absolute');
@@ -161,7 +193,7 @@ const parseJson = (term = '', ignore_case = false) => {
                 captionLabel.classList.add('px-1');
                 captionLabel.classList.add('text-end');
                 captionLabel.classList.add('text-light');
-                captionLabel.innerText = imgSize;
+                captionLabel.innerText = ((img.src).endsWith('.svg') ? 'SVG' : 'PNG') + (imgSize == '' ? '' : ' ' + imgSize);
                 captionLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
                 captionLabel.style.fontSize = '10px';
 
@@ -178,7 +210,7 @@ const parseJson = (term = '', ignore_case = false) => {
 
             img.alt = element.path;
             img.className = 'img-thumbnail';
-            img.crossOrigin = "anonymous";
+            img.crossOrigin = 'anonymous';
             img.title = basename(element.path);
             img.src = element.path;
         });
@@ -188,6 +220,9 @@ const parseJson = (term = '', ignore_case = false) => {
 window.addEventListener('DOMContentLoaded', _ => {
     document.querySelectorAll('.alert').forEach((alert) => new bootstrap.Alert(alert));
     toastDict = {
+        'toast-copied-dataurl': new bootstrap.Toast(document.getElementById('toast-copied-dataurl'), {
+            delay: 500,
+        }),
         'toast-copied-png': new bootstrap.Toast(document.getElementById('toast-copied-png'), {
             delay: 500,
         }),
