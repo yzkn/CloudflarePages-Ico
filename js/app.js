@@ -142,9 +142,11 @@ const parseJson = (term = '', ignore_case = false) => {
                 } else if (event.shiftKey && (img.src).endsWith('.png')) {
                     // PNG形式のData URL
                     const dataURL = canvas.toDataURL();
+                    console.log(dataURL);
 
                     try {
-                        const item = new ClipboardItem({ 'text/plain': dataURL });
+                        const blob = new Blob([dataURL], { type: 'text/plain' })
+                        const item = new ClipboardItem({ 'text/plain': blob });
                         navigator.clipboard.write([item]);
                         toastDict['toast-copied-dataurl'].show();
                     } catch (error) {
