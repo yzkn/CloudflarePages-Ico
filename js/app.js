@@ -97,21 +97,53 @@ const parseJson = (term = '', ignore_case = false) => {
             let img = document.createElement('img');
             img.onclick = (event) => {
                 const img = event.target;
+
                 const canvas = document.createElement('canvas');
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
-                const ctx = canvas.getContext('2d');
 
+                const ctx = canvas.getContext('2d');
                 ctx.beginPath();
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-
                 ctx.drawImage(img, 0, 0);
 
-                const a = document.createElement("a");
-                a.href = canvas.toDataURL("image/png");
-                a.setAttribute("download", basename(element.path) + ".png");
-                a.dispatchEvent(new MouseEvent("click"));
+                if (event.ctrlKey) {
+                    canvas.toBlob(async (blob) => {
+                        try {
+                            const item = new ClipboardItem({
+                                'image/png': blob
+                            });
+                            await navigator.clipboard.write([item]);
+                            toastDict['toast-copied-png'].show();
+                        } catch (error) {
+                            if (error.message == 'ClipboardItem is not defined') {
+                                toastDict['toast-clipboard-item'].show();
+                            }
+                        }
+                    });
+                } else if (event.shiftKey && (img.src).endsWith('.svg')) {
+                    fetch(img.src)
+                        .then(function (response) {
+                            return response.text();
+                        }).then(async (svg) => {
+                            try {
+                                const blob = new Blob([svg], { type: "text/plain" });
+                                const item = new ClipboardItem({ "text/plain": blob });
+                                await navigator.clipboard.write([item]);
+                                toastDict['toast-copied-svg'].show();
+                            } catch (error) {
+                                if (error.message == 'ClipboardItem is not defined') {
+                                    toastDict['toast-clipboard-item'].show();
+                                }
+                            }
+                        })
+                } else {
+                    const a = document.createElement("a");
+                    a.href = canvas.toDataURL("image/png");
+                    a.setAttribute("download", basename(element.path) + ".png");
+                    a.dispatchEvent(new MouseEvent("click"));
+                }
             };
 
             img.onload = () => {
@@ -156,7 +188,10 @@ const parseJson = (term = '', ignore_case = false) => {
 window.addEventListener('DOMContentLoaded', _ => {
     document.querySelectorAll('.alert').forEach((alert) => new bootstrap.Alert(alert));
     toastDict = {
-        'toast-copied': new bootstrap.Toast(document.getElementById('toast-copied'), {
+        'toast-copied-png': new bootstrap.Toast(document.getElementById('toast-copied-png'), {
+            delay: 500,
+        }),
+        'toast-copied-svg': new bootstrap.Toast(document.getElementById('toast-copied-svg'), {
             delay: 500,
         }),
         'toast-input-keyword': new bootstrap.Toast(document.getElementById('toast-input-keyword'), {
