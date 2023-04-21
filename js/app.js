@@ -46,7 +46,7 @@ const initAutocomplete = () => {
             const option = document.createElement('option');
             const item = element.path.replace('https://raw.githubusercontent.com/', '').replaceAll('/', ' ').replace('.png', '').replace('.svg', '');
             const ssv = item.split(' ');
-            option.value = ssv[0] + ' ' + ssv[1] + ' ' + ssv[ssv.length - 1];
+            option.value = ssv[0] + (ssv[0] == ssv[1] ? '' : ' ' + ssv[1]) + ' ' + ssv[ssv.length - 1];
             searchList.appendChild(option);
         });
     }
