@@ -46,7 +46,7 @@ const initAutocomplete = () => {
             const option = document.createElement('option');
             const item = element.path.replace('https://raw.githubusercontent.com/', '').replaceAll('/', ' ').replace('.png', '').replace('.svg', '');
             const ssv = item.split(' ');
-            option.value = ssv[0] + ' ' + ssv[ssv.length - 1];
+            option.value = ssv[0] + ' ' + ssv[1] + ' ' + ssv[ssv.length - 1];
             searchList.appendChild(option);
         });
     }
@@ -246,7 +246,7 @@ window.addEventListener('DOMContentLoaded', _ => {
             delay: 500,
         }),
         'toast-input-keyword': new bootstrap.Toast(document.getElementById('toast-input-keyword'), {
-            delay: 2000,
+            delay: 10000,
         })
     };
 
