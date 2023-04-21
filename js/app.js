@@ -28,15 +28,27 @@ const hideSpinner = () => {
 };
 
 const loadJson = (term = '', ignore_case = false) => {
-    if (stored != null) {
-        parseJson(term, ignore_case)
-    } else {
+    if (stored == null) {
         fetch(apiUri)
             .then(response => response.json())
             .then(json => {
                 stored = json;
-                parseJson(term, ignore_case)
+                initAutocomplete();
             });
+    }
+};
+
+const initAutocomplete = () => {
+    if (stored != null) {
+        const searchList = document.getElementById('search-list');
+        const treeItems = stored.tree;
+        treeItems.forEach(element => {
+            const option = document.createElement('option');
+            const item = element.path.replace('https://raw.githubusercontent.com/', '').replaceAll('/', ' ').replace('.png', '').replace('.svg', '');
+            const ssv = item.split(' ');
+            option.value = ssv[0] + ' ' + ssv[ssv.length - 1];
+            searchList.appendChild(option);
+        });
     }
 };
 
@@ -247,7 +259,7 @@ window.addEventListener('DOMContentLoaded', _ => {
     if (term) {
         document.getElementById('icon-search-term').value = term;
 
-        loadJson(
+        parseJson(
             term,
             document.getElementById('icon-search-ignorecase').checked
         );
@@ -256,7 +268,7 @@ window.addEventListener('DOMContentLoaded', _ => {
     }
 
     document.getElementById('icon-search').addEventListener('click', _ => {
-        loadJson(
+        parseJson(
             document.getElementById('icon-search-term').value,
             document.getElementById('icon-search-ignorecase').checked
         );
@@ -267,4 +279,6 @@ window.addEventListener('DOMContentLoaded', _ => {
             document.getElementById('icon-search').dispatchEvent(new Event('click'));
         }
     });
+
+    loadJson();
 });
