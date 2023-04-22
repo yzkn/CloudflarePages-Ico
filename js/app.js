@@ -3,6 +3,7 @@
 
 const apiUri = 'list.json';
 const DEFAULT_SIZE = 512;
+const GITHUB_BASEURL = 'https://raw.githubusercontent.com/';
 
 let queries;
 let toastDict;
@@ -241,7 +242,7 @@ const initAutocomplete = () => {
         const treeItems = stored.tree;
         treeItems.forEach(element => {
             const option = document.createElement('option');
-            const item = element.path.replace('https://raw.githubusercontent.com/', '').replaceAll('/', ' ').replace('.png', '').replace('.svg', '');
+            const item = element.path.replace(GITHUB_BASEURL, '').replaceAll('/', ' ').replace('.png', '').replace('.svg', '');
             const ssv = item.split(' ');
             option.value = ssv[0] + (ssv[0] == ssv[1] ? '' : ' ' + ssv[1]) + ' ' + ssv[ssv.length - 1];
             searchList.appendChild(option);
@@ -336,11 +337,11 @@ const parseJson = (term = '', ignore_case = false) => {
                 ?
                 term.toLowerCase()
                     .split(/\s+/)
-                    .map(t => element.path.toLowerCase().includes(t))
+                    .map(t => element.path.replace(GITHUB_BASEURL, '').toLowerCase().includes(t))
                     .every(t => t === true)
                 :
                 term.split(/\s+/)
-                    .map(t => element.path.includes(t))
+                    .map(t => element.path.replace(GITHUB_BASEURL, '').includes(t))
                     .every(t => t === true)
         });
 
