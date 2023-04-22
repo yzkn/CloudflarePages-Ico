@@ -52,8 +52,84 @@ const initAutocomplete = () => {
     }
 };
 
+const imgOnclick = (canvas, element, eventCtrlKey, eventShiftKey, img) => {
+    console.log('imgOnclick()', canvas, element, eventCtrlKey, eventShiftKey, img);
+    const dataURL = canvas.toDataURL("image/png");
+
+    if (eventCtrlKey && ((img.src).endsWith('.png') || (img.src).startsWith('data:image/png;base64,'))) {
+        // PNG形式の画像をクリップボードにコピー
+        canvas.toBlob(async (blob) => {
+            try {
+                const item = new ClipboardItem({
+                    'image/png': blob
+                });
+                await navigator.clipboard.write([item]);
+                toastDict['toast-copied-png'].show();
+            } catch (error) {
+                if (error.message == 'ClipboardItem is not defined') {
+                    toastDict['toast-clipboard-item'].show();
+                }
+            }
+        });
+    } else if (eventCtrlKey && ((img.src).endsWith('.svg') || (img.src).startsWith('data:image/svg+xml;base64,'))) {
+        // SVGから変換したPNG形式の画像をクリップボードにコピー
+        canvas.toBlob(async (blob) => {
+            try {
+                const item = new ClipboardItem({
+                    'image/png': blob
+                });
+                await navigator.clipboard.write([item]);
+                toastDict['toast-copied-png'].show();
+            } catch (error) {
+                if (error.message == 'ClipboardItem is not defined') {
+                    toastDict['toast-clipboard-item'].show();
+                }
+            }
+        });
+    } else if (eventShiftKey && ((img.src).endsWith('.png') || (img.src).startsWith('data:image/png;base64,'))) {
+        // PNG形式のData URL
+        try {
+            const blob = new Blob([dataURL], { type: 'text/plain' })
+            const item = new ClipboardItem({ 'text/plain': blob });
+            navigator.clipboard.write([item]);
+            toastDict['toast-copied-dataurl'].show();
+        } catch (error) {
+            if (error.message == 'ClipboardItem is not defined') {
+                toastDict['toast-clipboard-item'].show();
+            }
+        }
+    } else if (eventShiftKey && ((img.src).endsWith('.svg') || (img.src).startsWith('data:image/svg+xml;base64,'))) {
+        // SVGのソース
+        fetch(img.src)
+            .then(function (response) {
+                return response.text();
+            }).then(async (svg) => {
+                try {
+                    const blob = new Blob([svg], { type: 'text/plain' });
+                    const item = new ClipboardItem({ 'text/plain': blob });
+                    await navigator.clipboard.write([item]);
+                    toastDict['toast-copied-svg'].show();
+                } catch (error) {
+                    if (error.message == 'ClipboardItem is not defined') {
+                        toastDict['toast-clipboard-item'].show();
+                    }
+                }
+            })
+    } else {
+        // PNGファイルダウンロード
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.setAttribute('download', basename(element.path) + '.png');
+        a.dispatchEvent(new MouseEvent('click'));
+    }
+};
+
 const parseJson = (term = '', ignore_case = false) => {
-    if (stored != null) {
+    if (stored == null) {
+        setTimeout(() => {
+            parseJson(term, ignore_case);
+        }, 500);
+    } else {
         showSpinner();
 
         let imageList = document.getElementById('image-list');
@@ -111,85 +187,57 @@ const parseJson = (term = '', ignore_case = false) => {
                 let img = document.createElement('img');
                 img.onclick = (event) => {
                     const img = event.target;
+                    const eventCtrlKey = event.ctrlKey, eventShiftKey = event.shiftKey;
 
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.naturalWidth;
-                    canvas.height = img.naturalHeight;
-
-                    const ctx = canvas.getContext('2d');
-                    ctx.beginPath();
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-
-                    if (event.ctrlKey && (img.src).endsWith('.png')) {
-                        // PNG形式の画像をクリップボードにコピー
-                        canvas.toBlob(async (blob) => {
-                            try {
-                                const item = new ClipboardItem({
-                                    'image/png': blob
-                                });
-                                await navigator.clipboard.write([item]);
-                                toastDict['toast-copied-png'].show();
-                            } catch (error) {
-                                if (error.message == 'ClipboardItem is not defined') {
-                                    toastDict['toast-clipboard-item'].show();
-                                }
-                            }
-                        });
-                    } else if (event.ctrlKey && (img.src).endsWith('.svg')) {
-                        // SVGから変換したPNG形式の画像をクリップボードにコピー
-                        canvas.toBlob(async (blob) => {
-                            try {
-                                const item = new ClipboardItem({
-                                    'image/png': blob
-                                });
-                                await navigator.clipboard.write([item]);
-                                toastDict['toast-copied-png'].show();
-                            } catch (error) {
-                                if (error.message == 'ClipboardItem is not defined') {
-                                    toastDict['toast-clipboard-item'].show();
-                                }
-                            }
-                        });
-                    } else if (event.shiftKey && (img.src).endsWith('.png')) {
-                        // PNG形式のData URL
-                        const dataURL = canvas.toDataURL();
-                        console.log(dataURL);
-
+                    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
                         try {
-                            const blob = new Blob([dataURL], { type: 'text/plain' })
-                            const item = new ClipboardItem({ 'text/plain': blob });
-                            navigator.clipboard.write([item]);
-                            toastDict['toast-copied-dataurl'].show();
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.naturalWidth;
+                            canvas.height = img.naturalHeight;
+
+                            const ctx = canvas.getContext('2d');
+                            ctx.beginPath();
+                            ctx.fillStyle = 'white';
+                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            ctx.drawImage(img, 0, 0);
+
+                            imgOnclick(canvas, element, eventCtrlKey, eventShiftKey, img);
                         } catch (error) {
-                            if (error.message == 'ClipboardItem is not defined') {
-                                toastDict['toast-clipboard-item'].show();
-                            }
+                            console.error(error);
                         }
-                    } else if (event.shiftKey && (img.src).endsWith('.svg')) {
-                        // SVGのソース
+                    } else {
+                        // Firefoxで幅・高さが指定されていないSVGファイルが描画されないバグを回避
                         fetch(img.src)
                             .then(function (response) {
                                 return response.text();
                             }).then(async (svg) => {
                                 try {
-                                    const blob = new Blob([svg], { type: 'text/plain' });
-                                    const item = new ClipboardItem({ 'text/plain': blob });
-                                    await navigator.clipboard.write([item]);
-                                    toastDict['toast-copied-svg'].show();
+                                    const parser = new DOMParser();
+                                    const result = parser.parseFromString(svg, 'text/xml');
+                                    const svgElem = result.getElementsByTagName("svg")[0];
+                                    svgElem.setAttribute('width', DEFAULT_SIZE + 'px');
+                                    svgElem.setAttribute('height', DEFAULT_SIZE + 'px');
+                                    const encoded = btoa(new XMLSerializer().serializeToString(svgElem));
+
+                                    img.onload = function () {
+                                        const canvas = document.createElement("canvas");
+                                        canvas.width = img.naturalWidth;
+                                        canvas.height = img.naturalHeight;
+
+                                        const ctx = canvas.getContext("2d");
+                                        ctx.beginPath();
+                                        ctx.fillStyle = 'white';
+                                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                        ctx.drawImage(img, 0, 0);
+
+                                        imgOnclick(canvas, element, eventCtrlKey, eventShiftKey, img);
+                                    };
+
+                                    img.src = 'data:image/svg+xml;base64,' + encoded;
                                 } catch (error) {
-                                    if (error.message == 'ClipboardItem is not defined') {
-                                        toastDict['toast-clipboard-item'].show();
-                                    }
+                                    console.error(error);
                                 }
                             })
-                    } else {
-                        // PNGファイルダウンロード
-                        const a = document.createElement('a');
-                        a.href = canvas.toDataURL('image/png');
-                        a.setAttribute('download', basename(element.path) + '.png');
-                        a.dispatchEvent(new MouseEvent('click'));
                     }
                 };
 
@@ -234,6 +282,8 @@ const parseJson = (term = '', ignore_case = false) => {
 };
 
 window.addEventListener('DOMContentLoaded', _ => {
+    loadJson();
+
     document.querySelectorAll('.alert').forEach((alert) => new bootstrap.Alert(alert));
     toastDict = {
         'toast-copied-dataurl': new bootstrap.Toast(document.getElementById('toast-copied-dataurl'), {
@@ -281,6 +331,4 @@ window.addEventListener('DOMContentLoaded', _ => {
             document.getElementById('icon-search').dispatchEvent(new Event('click'));
         }
     });
-
-    loadJson();
 });
