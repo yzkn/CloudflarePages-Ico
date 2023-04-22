@@ -27,6 +27,203 @@ const hideSpinner = () => {
     document.getElementById('icon-search').disabled = false;
 };
 
+const loadDataSource = () => {
+    const items = [
+        {
+            "url": "https://github.com/Vectopus/Atlas-icons-font",
+            "name": "Atlas icons"
+        },
+        {
+            "url": "https://icons.getbootstrap.com",
+            "name": "Bootstrap Icons"
+        },
+        {
+            "url": "https://github.com/atisawd/boxicons",
+            "name": "Boxicons"
+        },
+        {
+            "url": "https://github.com/alrra/browser-logos",
+            "name": "Browser Logos"
+        },
+        {
+            "url": "https://github.com/danklammer/bytesize-icons",
+            "name": "Bytesize Icons"
+        },
+        {
+            "url": "https://github.com/Klarr-Agency/Circum-icons",
+            "name": "Circum Icons"
+        },
+        {
+            "url": "https://github.com/AllienWorks/cryptocoins",
+            "name": "Cryptocoins"
+        },
+        {
+            "url": "https://github.com/spothq/cryptocurrency-icons",
+            "name": "Cryptocurrency Icons"
+        },
+        {
+            "url": "https://github.com/astrit/css.gg target=",
+            "name": "css.gg"
+        },
+        {
+            "url": "https://github.com/devicons/devicon",
+            "name": "Devicon"
+        },
+        {
+            "url": "https://github.com/vorillaz/devicons",
+            "name": "Devicons"
+        },
+        {
+            "url": "https://github.com/akveo/eva-icons",
+            "name": "Eva Icons"
+        },
+        {
+            "url": "https://github.com/evil-icons/evil-icons#readme",
+            "name": "Evil icons"
+        },
+        {
+            "url": "https://github.com/feathericons/feather",
+            "name": "Feather"
+        },
+        {
+            "url": "https://github.com/madebybowtie/FlagKit",
+            "name": "FlagKit"
+        },
+        {
+            "url": "https://github.com/microsoft/fluentui-system-icons",
+            "name": "Fluent System Icons"
+        },
+        {
+            "url": "https://github.com/FortAwesome/Font-Awesome",
+            "name": "Font Awesome"
+        },
+        {
+            "url": "https://github.com/refactoringui/heroicons#readme",
+            "name": "Heroicons"
+        },
+        {
+            "url": "https://github.com/zraly/humbleicons",
+            "name": "Humbleicons"
+        },
+        {
+            "url": "https://github.com/iconoir-icons/iconoir",
+            "name": "Iconoir"
+        },
+        {
+            "url": "https://github.com/bytedance/IconPark",
+            "name": "IconPark"
+        },
+        {
+            "url": "https://github.com/lusaxweb/iconsax",
+            "name": "Iconsax"
+        },
+        {
+            "url": "https://github.com/ionic-team/ionicons",
+            "name": "Ionicons"
+        },
+        {
+            "url": "https://github.com/mikolajdobrucki/ikonate",
+            "name": "Ikonate"
+        },
+        {
+            "url": "https://github.com/icons8/line-awesome",
+            "name": "Line Awesome"
+        },
+        {
+            "url": "https://github.com/lucide-icons/lucide",
+            "name": "Lucide"
+        },
+        {
+            "url": "https://fonts.google.com/icons",
+            "name": "Material Symbols"
+        },
+        {
+            "url": "https://github.com/Richard9394/MingCute",
+            "name": "MingCute Icon"
+        },
+        {
+            "url": "https://github.com/mono-company/mono-icons",
+            "name": "Mono Icons"
+        },
+        {
+            "url": "https://github.com/primer/octicons",
+            "name": "Octicons"
+        },
+        {
+            "url": "https://github.com/iconic/open-iconic",
+            "name": "Open Iconic"
+        },
+        {
+            "url": "https://github.com/hfg-gmuend/openmoji",
+            "name": "OpenMoji"
+        },
+        {
+            "url": "https://github.com/yne/picon",
+            "name": "Pico-icon"
+        },
+        {
+            "url": "https://github.com/phosphor-icons/homepage",
+            "name": "Phosphor Icons"
+        },
+        {
+            "url": "https://github.com/radix-ui/icons",
+            "name": "Radix Icons"
+        },
+        {
+            "url": "https://github.com/Remix-Design/RemixIcon",
+            "name": "Remix Icon"
+        },
+        {
+            "url": "https://github.com/planetabhi/sargam-icons",
+            "name": "Sargam Icons"
+        },
+        {
+            "url": "https://github.com/simple-icons/simple-icons",
+            "name": "Simple Icons"
+        },
+        {
+            "url": "https://github.com/danylpo/skware",
+            "name": "Skware"
+        },
+        {
+            "url": "https://github.com/lachlanjc/supercons",
+            "name": "Supercons"
+        },
+        {
+            "url": "https://github.com/tabler/tabler-icons",
+            "name": "Tabler Icons"
+        },
+        {
+            "url": "https://github.com/teenyicons/teenyicons",
+            "name": "Teenyicons"
+        },
+        {
+            "url": "https://github.com/iconscout/unicons",
+            "name": "Unicons"
+        },
+        {
+            "url": "https://github.com/VectorLogoZone/vectorlogozone",
+            "name": "Vector Logo Zone"
+        },
+        {
+            "url": "https://github.com/microsoft/vscode-icons",
+            "name": "Visual Studio Code Icons"
+        },
+        {
+            "url": "https://github.com/erikflowers/weather-icons",
+            "name": "Weather Icons"
+        }
+    ];
+
+    const datasourceList = document.getElementById('datasource-list');
+    items.sort((a, b) => a.name - b.name).forEach(item => {
+        let datasourceItem = document.createElement('div');
+        datasourceItem.classList.add('list-group');
+        datasourceItem.innerHTML = '<a href="' + item.url + '" target="_blank" class="list-group-item list-group-item-light"> ' + item.name + '</a>';
+        datasourceList.appendChild(datasourceItem);
+    });
+};
+
 const loadJson = (term = '', ignore_case = false) => {
     if (stored == null) {
         fetch(apiUri)
@@ -282,6 +479,7 @@ const parseJson = (term = '', ignore_case = false) => {
 };
 
 window.addEventListener('DOMContentLoaded', _ => {
+    loadDataSource();
     loadJson();
 
     document.querySelectorAll('.alert').forEach((alert) => new bootstrap.Alert(alert));
