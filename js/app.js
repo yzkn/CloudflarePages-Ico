@@ -53,7 +53,6 @@ const initAutocomplete = () => {
 };
 
 const imgOnclick = (canvas, element, eventCtrlKey, eventShiftKey, img) => {
-    console.log('imgOnclick()', canvas, element, eventCtrlKey, eventShiftKey, img);
     const dataURL = canvas.toDataURL("image/png");
 
     if (eventCtrlKey && ((img.src).endsWith('.png') || (img.src).startsWith('data:image/png;base64,'))) {
@@ -254,9 +253,10 @@ const parseJson = (term = '', ignore_case = false) => {
                     let captionLabel = document.createElement('p');
                     captionLabel.classList.add('m-0');
                     captionLabel.classList.add('px-1');
+                    captionLabel.classList.add('small');
                     captionLabel.classList.add('text-end');
                     captionLabel.classList.add('text-light');
-                    captionLabel.innerText = ((img.src).endsWith('.svg') ? 'SVG' : 'PNG') + (imgSize == '' ? '' : ' ' + imgSize);
+                    captionLabel.innerHTML = ((img.src).endsWith('.svg') ? 'SVG' : 'PNG') + (imgSize == '' ? '' : '<br>' + imgSize);
                     captionLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
                     captionLabel.style.fontSize = '10px';
 
