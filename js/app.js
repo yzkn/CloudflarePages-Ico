@@ -483,6 +483,12 @@ window.addEventListener('DOMContentLoaded', _ => {
     loadDataSource();
     loadJson();
 
+    document.getElementById('icon-search-ignorecase').addEventListener('change', _ => {
+        const checked = document.getElementById('icon-search-ignorecase').checked;
+        document.getElementById('icon-search-ignorecase-label').innerText = "大文字/小文字を区別"
+            + (checked ? "しない" : "する");
+    });
+
     document.querySelectorAll('.alert').forEach((alert) => new bootstrap.Alert(alert));
     toastDict = {
         'toast-copied-dataurl': new bootstrap.Toast(document.getElementById('toast-copied-dataurl'), {
