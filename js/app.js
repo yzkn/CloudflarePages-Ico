@@ -216,7 +216,7 @@ const loadDataSource = () => {
     ];
 
     const datasourceList = document.getElementById('datasource-list');
-    items.sort((a, b) => a.name - b.name).forEach(item => {
+    items.sort((a, b) => a.name > b.name ? 1 : -1).forEach(item => {
         let datasourceItem = document.createElement('div');
         datasourceItem.classList.add('list-group');
         datasourceItem.innerHTML = '<a href="' + item.url + '" target="_blank" class="list-group-item list-group-item-light"> ' + item.name + '</a>';
