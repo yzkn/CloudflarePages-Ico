@@ -489,7 +489,7 @@ const parseJson = (term = '', ignore_case = false) => {
                 img.alt = element.path;
                 img.className = 'img-thumbnail';
                 img.crossOrigin = 'anonymous';
-                img.title = basename(element.path);
+                img.title = element.path;
                 img.src = element.path;
             });
         }
