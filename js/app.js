@@ -212,6 +212,10 @@ const loadDataSource = () => {
         {
             "url": "https://github.com/erikflowers/weather-icons",
             "name": "Weather Icons"
+        },
+        {
+            "url": "https://www.digital.go.jp/policies/servicedesign/designsystem/Illustration_Icons/",
+            "name": "Digital Agency"
         }
     ];
 
