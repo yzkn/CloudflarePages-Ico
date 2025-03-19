@@ -216,6 +216,10 @@ const loadDataSource = () => {
         {
             "url": "https://www.digital.go.jp/policies/servicedesign/designsystem/Illustration_Icons/",
             "name": "Digital Agency"
+        },
+        {
+            "url": "https://pixeliconlibrary.com/",
+            "name": "Pixel Icon Library"
         }
     ];
 
