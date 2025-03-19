@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2023 YA-androidapp(https://github.com/YA-androidapp) All rights reserved.
+# Copyright (c) 2025 YA-androidapp(https://github.com/YA-androidapp) All rights reserved.
 
 # sudo apt-get install libcairo2-dev
 # python -m  pip install cairosvg
