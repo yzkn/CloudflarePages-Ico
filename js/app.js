@@ -1,4 +1,4 @@
-// Copyright (c) 2025 YA All rights reserved.
+// Copyright (c) 2026 YA All rights reserved.
 
 
 const apiUri = 'list.json';
@@ -400,10 +400,46 @@ const parseJson = (term = '', ignore_case = false) => {
                             canvas.height = img.naturalHeight;
 
                             const ctx = canvas.getContext('2d');
-                            ctx.beginPath();
-                            ctx.fillStyle = 'white';
-                            ctx.fillRect(0, 0, canvas.width, canvas.height);
-                            ctx.drawImage(img, 0, 0);
+
+                            //
+
+                            const tsCondition = document.getElementById('icon-copy-transparent-select').value;
+                            if (tsCondition == 'lightgray-to-transparent') {
+                                ctx.drawImage(img, 0, 0);
+                                const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                const data = imagedata.data;
+                                for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
+                                    if (data[i] >= 240 && data[i + 1] >= 240 && data[i + 2] >= 240 && data[i] === data[i + 1] && data[i + 1] === data[i + 2]) {
+                                        // data[i] = 0;
+                                        // data[i + 1] = 0;
+                                        // data[i + 2] = 0;
+                                        data[i + 3] = 0; // アルファ値を0にして透明にする
+                                    }
+                                }
+                                ctx.putImageData(imagedata, 0, 0);
+                            } else if (tsCondition == 'white-to-transparent') {
+                                ctx.drawImage(img, 0, 0);
+                                const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                const data = imagedata.data;
+                                for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
+                                    if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
+                                        data[i + 3] = 0; // アルファ値を0にして透明にする
+                                    }
+                                }
+                                ctx.putImageData(imagedata, 0, 0);
+                            } else if (tsCondition == 'white-background') {
+                                ctx.beginPath();
+                                ctx.fillStyle = 'white';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                ctx.drawImage(img, 0, 0);
+                            } else if (tsCondition == 'none') {
+                                ctx.drawImage(img, 0, 0);
+                            }
+
+                            // ctx.beginPath();
+                            // ctx.fillStyle = 'white';
+                            // ctx.fillRect(0, 0, canvas.width, canvas.height);
+                            // ctx.drawImage(img, 0, 0);
 
                             imgOnclick(canvas, element, eventCtrlKey, eventShiftKey, img);
                         } catch (error) {
@@ -429,10 +465,45 @@ const parseJson = (term = '', ignore_case = false) => {
                                         canvas.height = img.naturalHeight;
 
                                         const ctx = canvas.getContext("2d");
-                                        ctx.beginPath();
-                                        ctx.fillStyle = 'white';
-                                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                        ctx.drawImage(img, 0, 0);
+                                        //
+
+                                        const tsCondition = document.getElementById('icon-copy-transparent-select').value;
+                                        if (tsCondition == 'lightgray-to-transparent') {
+                                            ctx.drawImage(img, 0, 0);
+                                            const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                            const data = imagedata.data;
+                                            for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
+                                                if (data[i] >= 240 && data[i + 1] >= 240 && data[i + 2] >= 240 && data[i] === data[i + 1] && data[i + 1] === data[i + 2]) {
+                                                    // data[i] = 0;
+                                                    // data[i + 1] = 0;
+                                                    // data[i + 2] = 0;
+                                                    data[i + 3] = 0; // アルファ値を0にして透明にする
+                                                }
+                                            }
+                                            ctx.putImageData(imagedata, 0, 0);
+                                        } else if (tsCondition == 'white-to-transparent') {
+                                            ctx.drawImage(img, 0, 0);
+                                            const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                                            const data = imagedata.data;
+                                            for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
+                                                if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
+                                                    data[i + 3] = 0; // アルファ値を0にして透明にする
+                                                }
+                                            }
+                                            ctx.putImageData(imagedata, 0, 0);
+                                        } else if (tsCondition == 'white-background') {
+                                            ctx.beginPath();
+                                            ctx.fillStyle = 'white';
+                                            ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                            ctx.drawImage(img, 0, 0);
+                                        } else if (tsCondition == 'none') {
+                                            ctx.drawImage(img, 0, 0);
+                                        }
+
+                                        // ctx.beginPath();
+                                        // ctx.fillStyle = 'white';
+                                        // ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                        // ctx.drawImage(img, 0, 0);
 
                                         imgOnclick(canvas, element, eventCtrlKey, eventShiftKey, img);
                                     };
@@ -534,6 +605,7 @@ window.addEventListener('DOMContentLoaded', _ => {
     if (ic) {
         if (ic == 't') {
             document.getElementById('icon-search-ignorecase').checked = true;
+            document.getElementById('icon-search-ignorecase-label').innerText = "大文字/小文字を区別しない";
         }
     }
 
