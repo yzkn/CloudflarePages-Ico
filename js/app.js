@@ -344,11 +344,11 @@ const parseJson = (term = '', ignore_case = false) => {
                 ?
                 term.toLowerCase()
                     .split(/\s+/)
-                    .map(t => element.path.replace(GITHUB_BASEURL, '').toLowerCase().includes(t))
+                    .map(t => element.path.replace(GITHUB_BASEURL, '').toLowerCase().includes(t) || element.description.includes(t))
                     .every(t => t === true)
                 :
                 term.split(/\s+/)
-                    .map(t => element.path.replace(GITHUB_BASEURL, '').includes(t))
+                    .map(t => element.path.replace(GITHUB_BASEURL, '').includes(t) || element.description.includes(t))
                     .every(t => t === true)
         });
 
@@ -568,7 +568,7 @@ const parseJson = (term = '', ignore_case = false) => {
                 img.alt = element.path;
                 img.className = 'img-thumbnail';
                 img.crossOrigin = 'anonymous';
-                img.title = element.path;
+                img.title = element.path + "\n---\n" + element.description + "\n（クリック：ファイルをDL / Ctrl + クリック：画像をコピー / Shift + クリック：文字列をコピー）";
                 img.src = element.path;
             });
         }
@@ -601,11 +601,21 @@ window.addEventListener('DOMContentLoaded', _ => {
         })
     };
 
+    // クエリパラメーターをもとに設定: icon-search-ignorecase
     let ic = retrieveQueryDict()['ic'];
     if (ic) {
         if (ic == 't') {
             document.getElementById('icon-search-ignorecase').checked = true;
-            document.getElementById('icon-search-ignorecase-label').innerText = "大文字/小文字を区別しない";
+            document.getElementById('icon-search-ignorecase-label').innerText = "大/小文字を区別しない";
+        }
+    }
+
+    // クエリパラメーターをもとに設定: icon-copy-transparent-select
+    let ts = retrieveQueryDict()['ts'];
+    if (ts) {
+        if (ts == 'none' || ts == 'white-to-transparent' || ts == 'white-background' || ts == 'lightgray-to-transparent') {
+            let optionElement = document.getElementById('icon-copy-transparent-select').querySelector('option[value="' + ts + '"]');
+            optionElement.selected = true;
         }
     }
 
