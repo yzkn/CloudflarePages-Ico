@@ -382,7 +382,15 @@ const parseJson = (term = '', ignore_case = false) => {
             });
 
             let elementsProcessed = 0;
+            const countProcessed = () => {
+                elementsProcessed++;
+                if (elementsProcessed === sorted.length) {
+                    hideSpinner();
+                }
+            };
             sorted.forEach(element => {
+                // 最初の読み込みの成否を 1 回だけ数える（クリックで src を差し替えたときに数え直さない）
+                let settled = false;
                 let box = document.createElement('div');
                 box.classList.add('position-relative');
                 box.height = 64;
@@ -517,6 +525,10 @@ const parseJson = (term = '', ignore_case = false) => {
                 };
 
                 img.onload = () => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
                     const width = img.naturalWidth;
                     const height = img.naturalHeight;
                     const imgSize = (width > 0 && height > 0) ? String(width) + 'x' + String(height) : '';
@@ -559,11 +571,33 @@ const parseJson = (term = '', ignore_case = false) => {
                     box.appendChild(nameBox);
                     imageList.appendChild(box);
 
-                    elementsProcessed++;
-                    if (elementsProcessed === sorted.length) {
-                        hideSpinner();
-                    }
+                    countProcessed();
                 }
+
+                img.onerror = () => {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    // 読み込めない画像も完了に数える（数えないとスピナー・検索ボタンが戻らない）
+                    let failedBox = document.createElement('div');
+                    failedBox.classList.add('img-thumbnail');
+                    failedBox.classList.add('d-flex');
+                    failedBox.classList.add('align-items-center');
+                    failedBox.classList.add('justify-content-center');
+                    failedBox.classList.add('text-center');
+                    failedBox.classList.add('text-secondary');
+                    failedBox.style.width = '64px';
+                    failedBox.style.height = '64px';
+                    failedBox.style.fontSize = '10px';
+                    failedBox.innerText = '読み込めません';
+                    failedBox.title = element.path + "\n---\n" + element.description + "\n（画像を読み込めませんでした）";
+
+                    box.appendChild(failedBox);
+                    imageList.appendChild(box);
+
+                    countProcessed();
+                };
 
                 img.alt = element.path;
                 img.className = 'img-thumbnail';
