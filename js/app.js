@@ -344,7 +344,7 @@ const parseJson = (term = '', ignore_case = false) => {
                 ?
                 term.toLowerCase()
                     .split(/\s+/)
-                    .map(t => element.path.replace(GITHUB_BASEURL, '').toLowerCase().includes(t) || element.description.includes(t))
+                    .map(t => element.path.replace(GITHUB_BASEURL, '').toLowerCase().includes(t) || element.description.toLowerCase().includes(t))
                     .every(t => t === true)
                 :
                 term.split(/\s+/)
