@@ -5,6 +5,76 @@ const apiUri = 'list.json';
 const DEFAULT_SIZE = 512;
 const GITHUB_BASEURL = 'https://raw.githubusercontent.com/';
 
+// 出典で絞り込むチップ: 選んだ出典のキー（空なら、すべて）
+let selectedSources = new Set();
+
+// path（URL）から出典のキーを作る。GitHub は「所有者/リポジトリ」、npm（jsDelivr）はパッケージ、ほかはホスト
+const sourceKey = path => {
+    let url;
+    try {
+        url = new URL(path);
+    } catch (error) {
+        return path.split('/')[0];
+    }
+    const parts = url.pathname.split('/').filter(x => x);
+    if (url.host === 'raw.githubusercontent.com' && parts.length >= 2) {
+        return parts[0] + '/' + parts[1];
+    }
+    if (url.host === 'cdn.jsdelivr.net' && parts[0] === 'npm' && parts.length >= 2) {
+        return 'npm:' + (parts[1].startsWith('@') && parts.length >= 3 ? parts[1] + '/' + parts[2] : parts[1]);
+    }
+    return url.host;
+};
+
+// チップに出す名前: リポジトリ名・パッケージ名（版を除く）・ホストの先頭（全体はツールチップ）
+// リポジトリ名が汎用（icons など）で見分けにくいときは、所有者の名前を使う
+const genericRepoNames = ['icon', 'icons', 'homepage'];
+const sourceLabel = key => {
+    if (key.startsWith('npm:')) {
+        return key.split('/').pop().replace(/(.)@.*$/, '$1');
+    }
+    if (key.includes('/')) {
+        const [owner, repo] = key.split('/');
+        return genericRepoNames.includes(repo.toLowerCase()) ? owner : repo;
+    }
+    return key.split('.')[0];
+};
+
+const renderSourceFilter = (counts, total, term, ignore_case) => {
+    const container = document.getElementById('source-filter');
+    container.innerHTML = '';
+
+    const makeChip = (label, title, count, active, onClick) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.classList.add('btn', 'btn-sm', 'rounded-pill', 'text-nowrap', active ? 'btn-secondary' : 'btn-outline-secondary');
+        chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+        chip.title = title;
+        chip.innerText = label + ' ' + count;
+        chip.addEventListener('click', onClick);
+        container.appendChild(chip);
+    };
+
+    makeChip('すべて', '出典で絞り込まない', total, selectedSources.size === 0, () => {
+        selectedSources.clear();
+        parseJson(term, ignore_case);
+    });
+    Object.keys(counts)
+        .sort((a, b) => sourceLabel(a).localeCompare(sourceLabel(b), 'ja'))
+        .forEach(key => {
+            makeChip(sourceLabel(key), key.replace(/^npm:/, 'npm: '), counts[key], selectedSources.has(key), () => {
+                if (selectedSources.has(key)) {
+                    selectedSources.delete(key);
+                } else {
+                    selectedSources.add(key);
+                }
+                parseJson(term, ignore_case);
+            });
+        });
+
+    container.classList.toggle('d-none', Object.keys(counts).length === 0);
+};
+
 let queries;
 let toastDict;
 
@@ -365,6 +435,24 @@ const parseJson = (term = '', ignore_case = false) => {
             filtered = filtered.filter((element) => {
                 return (!element.path.includes('asset/Power_Platform_Connector/'));
             });
+        }
+
+        // 出典ごとの件数（チップに出す）。キーワードで絞ったあと、出典で絞る前の数
+        const counts = {};
+        filtered.forEach(element => {
+            const key = sourceKey(element.path);
+            counts[key] = (counts[key] || 0) + 1;
+        });
+        // 今回の結果に無い出典の選択は外す（チップが消えて外せなくなるため）
+        selectedSources.forEach(key => {
+            if (!counts[key]) {
+                selectedSources.delete(key);
+            }
+        });
+        renderSourceFilter(counts, filtered.length, term, ignore_case);
+
+        if (selectedSources.size > 0) {
+            filtered = filtered.filter(element => selectedSources.has(sourceKey(element.path)));
         }
         if (filtered.length == 0) {
             hideSpinner();
