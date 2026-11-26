@@ -327,68 +327,143 @@ const initAutocomplete = () => {
     }
 };
 
-const imgOnclick = (canvas, element, eventCtrlKey, eventShiftKey, img) => {
-    const dataURL = canvas.toDataURL("image/png");
+// 知らせ: 成功（緑）と失敗（黄）。文言は場面ごとに入れ替える
+const showCopied = message => {
+    document.getElementById('toast-copied-body').innerText = message;
+    toastDict['toast-copied'].show();
+};
+const showFailed = message => {
+    document.getElementById('toast-failed-body').innerText = message;
+    toastDict['toast-failed'].show();
+};
 
-    if (eventCtrlKey && ((img.src).endsWith('.png') || (img.src).startsWith('data:image/png;base64,'))) {
-        // PNG形式の画像をクリップボードにコピー
-        canvas.toBlob(async (blob) => {
-            try {
-                const item = new ClipboardItem({
-                    'image/png': blob
-                });
-                await navigator.clipboard.write([item]);
-                toastDict['toast-copied-png'].show();
-            } catch (error) {
-                if (error.message == 'ClipboardItem is not defined') {
-                    toastDict['toast-clipboard-item'].show();
-                }
+// ClipboardItem（画像のコピーに使う）が無いブラウザーがある
+const hasClipboardItem = () => typeof ClipboardItem !== 'undefined' && !!navigator.clipboard && typeof navigator.clipboard.write === 'function';
+
+// SVG の画像か（Firefox の回避で src を data: の SVG に差し替えたときも含む）
+const isSvg = (img, element) => element.path.endsWith('.svg') || img.src.endsWith('.svg') || img.src.startsWith('data:image/svg+xml;base64,');
+
+// Blob をファイルとして保存する
+const saveBlob = (blob, name) => {
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
+};
+
+// SVG を元のファイルのまま保存する（PNG に変えない）
+const saveSvg = element => {
+    fetch(element.path)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
             }
+            return response.blob();
+        })
+        .then(blob => saveBlob(blob, basename(element.path) + '.svg'))
+        .catch(error => {
+            console.error(error);
+            showFailed('SVG を保存できませんでした（' + error.message + '）。');
         });
-    } else if (eventCtrlKey && ((img.src).endsWith('.svg') || (img.src).startsWith('data:image/svg+xml;base64,'))) {
-        // SVGから変換したPNG形式の画像をクリップボードにコピー
-        canvas.toBlob(async (blob) => {
-            try {
-                const item = new ClipboardItem({
-                    'image/png': blob
-                });
-                await navigator.clipboard.write([item]);
-                toastDict['toast-copied-png'].show();
-            } catch (error) {
-                if (error.message == 'ClipboardItem is not defined') {
-                    toastDict['toast-clipboard-item'].show();
-                }
-            }
-        });
-    } else if (eventShiftKey && ((img.src).endsWith('.png') || (img.src).startsWith('data:image/png;base64,'))) {
-        // PNG形式のData URL
+};
+
+// 画像（PNG）をコピーする。Safari はクリックの中で write を呼ぶ必要があるので、Blob の Promise を渡す
+const copyPng = canvas => {
+    if (!hasClipboardItem()) {
+        toastDict['toast-clipboard-item'].show();
+        return;
+    }
+    const blobPromise = new Promise((resolve, reject) => {
         try {
-            const blob = new Blob([dataURL], { type: 'text/plain' })
-            const item = new ClipboardItem({ 'text/plain': blob });
-            navigator.clipboard.write([item]);
-            toastDict['toast-copied-dataurl'].show();
+            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('PNG にできませんでした')), 'image/png');
         } catch (error) {
-            if (error.message == 'ClipboardItem is not defined') {
-                toastDict['toast-clipboard-item'].show();
+            // 画像の読み込み元が CORS を許していないと、canvas から取り出せない
+            reject(error);
+        }
+    });
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })])
+        .then(() => showCopied('PNG画像をクリップボードにコピーしました。'))
+        .catch(error => {
+            console.error(error);
+            showFailed('画像をコピーできませんでした（' + error.message + '）。');
+        });
+};
+
+// 文字列をコピーする。ClipboardItem が無ければ writeText で行う
+const copyText = (textPromise, message) => {
+    const text = Promise.resolve(textPromise);
+    let done;
+    if (hasClipboardItem()) {
+        done = navigator.clipboard.write([new ClipboardItem({ 'text/plain': text.then(t => new Blob([t], { type: 'text/plain' })) })])
+            .catch(error => {
+                // ClipboardItem に Promise を渡せないブラウザーもあるので、writeText で試しなおす
+                console.warn(error);
+                return text.then(t => navigator.clipboard.writeText(t));
+            });
+    } else if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        done = text.then(t => navigator.clipboard.writeText(t));
+    } else {
+        toastDict['toast-clipboard-item'].show();
+        return;
+    }
+    done.then(() => showCopied(message))
+        .catch(error => {
+            console.error(error);
+            showFailed('文字列をコピーできませんでした（' + error.message + '）。');
+        });
+};
+
+// 透過の設定に合わせて、画像を canvas に描く
+const drawToCanvas = img => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+
+    const ctx = canvas.getContext('2d');
+
+    const tsCondition = document.getElementById('icon-copy-transparent-select').value;
+    if (tsCondition == 'lightgray-to-transparent') {
+        ctx.drawImage(img, 0, 0);
+        const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imagedata.data;
+        for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
+            if (data[i] >= 240 && data[i + 1] >= 240 && data[i + 2] >= 240 && data[i] === data[i + 1] && data[i + 1] === data[i + 2]) {
+                data[i + 3] = 0; // アルファ値を0にして透明にする
             }
         }
-    } else if (eventShiftKey && ((img.src).endsWith('.svg') || (img.src).startsWith('data:image/svg+xml;base64,'))) {
-        // SVGのソース
-        fetch(img.src)
-            .then(function (response) {
-                return response.text();
-            }).then(async (svg) => {
-                try {
-                    const blob = new Blob([svg], { type: 'text/plain' });
-                    const item = new ClipboardItem({ 'text/plain': blob });
-                    await navigator.clipboard.write([item]);
-                    toastDict['toast-copied-svg'].show();
-                } catch (error) {
-                    if (error.message == 'ClipboardItem is not defined') {
-                        toastDict['toast-clipboard-item'].show();
-                    }
-                }
-            })
+        ctx.putImageData(imagedata, 0, 0);
+    } else if (tsCondition == 'white-to-transparent') {
+        ctx.drawImage(img, 0, 0);
+        const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imagedata.data;
+        for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
+            if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
+                data[i + 3] = 0; // アルファ値を0にして透明にする
+            }
+        }
+        ctx.putImageData(imagedata, 0, 0);
+    } else if (tsCondition == 'white-background') {
+        ctx.beginPath();
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+    } else {
+        ctx.drawImage(img, 0, 0);
+    }
+    return canvas;
+};
+
+// canvas を使う操作: 'save-png'（PNG で保存）/ 'copy-png'（画像をコピー）/ 'copy-text'（PNG の Data URL をコピー）
+const imgOnclick = (canvas, element, action) => {
+    if (action === 'copy-png') {
+        copyPng(canvas);
+    } else if (action === 'copy-text') {
+        // PNG形式のData URL
+        copyText(canvas.toDataURL('image/png'), 'PNG形式のData URLをクリップボードにコピーしました。');
     } else {
         // PNGファイルダウンロード
         const a = document.createElement('a');
@@ -397,6 +472,157 @@ const imgOnclick = (canvas, element, eventCtrlKey, eventShiftKey, img) => {
         a.dispatchEvent(new MouseEvent('click'));
     }
 };
+
+// 操作を行う。action: 'save-png' / 'save-svg' / 'copy-png' / 'copy-text'
+const runAction = (img, element, action) => {
+    if (action === 'save-svg') {
+        saveSvg(element);
+        return;
+    }
+    if (action === 'copy-text' && isSvg(img, element)) {
+        // SVGのソース（元のファイル）
+        copyText(fetch(element.path).then(response => {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.text();
+        }), 'SVG文字列をクリップボードにコピーしました。');
+        return;
+    }
+
+    const withCanvas = () => {
+        try {
+            imgOnclick(drawToCanvas(img), element, action);
+        } catch (error) {
+            console.error(error);
+            showFailed('画像を扱えませんでした（' + error.message + '）。');
+        }
+    };
+
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        withCanvas();
+        return;
+    }
+    // Firefoxで幅・高さが指定されていないSVGファイルが描画されないバグを回避
+    fetch(img.src)
+        .then(response => response.text())
+        .then(svg => {
+            const parser = new DOMParser();
+            const result = parser.parseFromString(svg, 'text/xml');
+            const svgElem = result.getElementsByTagName('svg')[0];
+            svgElem.setAttribute('width', DEFAULT_SIZE + 'px');
+            svgElem.setAttribute('height', DEFAULT_SIZE + 'px');
+            const encoded = btoa(new XMLSerializer().serializeToString(svgElem));
+            img.onload = withCanvas;
+            img.src = 'data:image/svg+xml;base64,' + encoded;
+        })
+        .catch(error => {
+            console.error(error);
+            showFailed('画像を扱えませんでした（' + error.message + '）。');
+        });
+};
+
+// 保存・コピーのメニュー（1 つを使い回す）。スマートフォンでは画像のタップで、PC では右上の ⋯ で開く
+let menuTarget = null;
+const menuActions = [
+    ['save-png', 'PNG で保存'],
+    ['save-svg', 'SVG で保存'],
+    ['copy-png', '画像をコピー'],
+    ['copy-text', '文字列をコピー'],
+];
+const closeMenu = restoreFocus => {
+    const menu = document.getElementById('icon-menu');
+    if (!menu || menu.classList.contains('d-none')) {
+        return;
+    }
+    menu.classList.add('d-none');
+    if (restoreFocus && menuTarget && menuTarget.opener) {
+        menuTarget.opener.focus();
+    }
+    menuTarget = null;
+};
+const getMenu = () => {
+    let menu = document.getElementById('icon-menu');
+    if (menu) {
+        return menu;
+    }
+    menu = document.createElement('div');
+    menu.id = 'icon-menu';
+    menu.className = 'icon-menu card shadow d-none';
+    menu.setAttribute('role', 'menu');
+
+    const title = document.createElement('div');
+    title.id = 'icon-menu-title';
+    title.className = 'icon-menu-title px-2 pt-1 text-secondary text-truncate';
+    menu.appendChild(title);
+
+    menuActions.forEach(([action, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-light btn-sm text-start rounded-0';
+        button.dataset.action = action;
+        button.setAttribute('role', 'menuitem');
+        button.innerText = label;
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            const target = menuTarget;
+            closeMenu(false);
+            if (target) {
+                runAction(target.img, target.element, action);
+            }
+        });
+        menu.appendChild(button);
+    });
+
+    menu.addEventListener('keydown', event => {
+        const items = [...menu.querySelectorAll('button:not(.d-none)')];
+        const index = items.indexOf(document.activeElement);
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeMenu(true);
+        } else if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            items[(index + 1) % items.length].focus();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            items[(index - 1 + items.length) % items.length].focus();
+        } else if (event.key === 'Tab') {
+            closeMenu(false);
+        }
+    });
+    document.body.appendChild(menu);
+    return menu;
+};
+const openMenu = (anchor, img, element) => {
+    const menu = getMenu();
+    menuTarget = { img: img, element: element, opener: anchor };
+    document.getElementById('icon-menu-title').innerText = basename(element.path);
+    // 「SVG で保存」は SVG のときだけ出す
+    menu.querySelector('[data-action="save-svg"]').classList.toggle('d-none', !isSvg(img, element));
+    menu.classList.remove('d-none');
+
+    // 枠の下に出す。画面からはみ出すときは上に出す・左右に寄せる
+    const rect = anchor.getBoundingClientRect();
+    const width = menu.offsetWidth;
+    const height = menu.offsetHeight;
+    const left = Math.max(8, Math.min(rect.left, document.documentElement.clientWidth - width - 8));
+    let top = rect.bottom + 4;
+    if (top + height > window.innerHeight - 8 && rect.top - height - 4 >= 8) {
+        top = rect.top - height - 4;
+    }
+    menu.style.left = (left + window.scrollX) + 'px';
+    menu.style.top = (top + window.scrollY) + 'px';
+    menu.querySelector('button:not(.d-none)').focus({ preventScroll: true });
+};
+document.addEventListener('click', event => {
+    if (!event.target.closest('#icon-menu')) {
+        closeMenu(false);
+    }
+});
+window.addEventListener('resize', () => closeMenu(false));
+
+// マウスを載せられない端末（スマートフォンなど）か
+const isTouchOnly = () => window.matchMedia('(hover: none)').matches;
 
 // 検索の結果は、並び順どおりに pageSize 件ずつ置く（当たった全件の画像を一度に要求しない）
 const pageSize = 200;
@@ -522,128 +748,16 @@ const parseJson = (term = '', ignore_case = false) => {
                 let img = document.createElement('img');
                 img.onclick = (event) => {
                     const img = event.target;
-                    const eventCtrlKey = event.ctrlKey, eventShiftKey = event.shiftKey;
-
-                    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-                        try {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = img.naturalWidth;
-                            canvas.height = img.naturalHeight;
-
-                            const ctx = canvas.getContext('2d');
-
-                            //
-
-                            const tsCondition = document.getElementById('icon-copy-transparent-select').value;
-                            if (tsCondition == 'lightgray-to-transparent') {
-                                ctx.drawImage(img, 0, 0);
-                                const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                                const data = imagedata.data;
-                                for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
-                                    if (data[i] >= 240 && data[i + 1] >= 240 && data[i + 2] >= 240 && data[i] === data[i + 1] && data[i + 1] === data[i + 2]) {
-                                        // data[i] = 0;
-                                        // data[i + 1] = 0;
-                                        // data[i + 2] = 0;
-                                        data[i + 3] = 0; // アルファ値を0にして透明にする
-                                    }
-                                }
-                                ctx.putImageData(imagedata, 0, 0);
-                            } else if (tsCondition == 'white-to-transparent') {
-                                ctx.drawImage(img, 0, 0);
-                                const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                                const data = imagedata.data;
-                                for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
-                                    if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
-                                        data[i + 3] = 0; // アルファ値を0にして透明にする
-                                    }
-                                }
-                                ctx.putImageData(imagedata, 0, 0);
-                            } else if (tsCondition == 'white-background') {
-                                ctx.beginPath();
-                                ctx.fillStyle = 'white';
-                                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                ctx.drawImage(img, 0, 0);
-                            } else if (tsCondition == 'none') {
-                                ctx.drawImage(img, 0, 0);
-                            }
-
-                            // ctx.beginPath();
-                            // ctx.fillStyle = 'white';
-                            // ctx.fillRect(0, 0, canvas.width, canvas.height);
-                            // ctx.drawImage(img, 0, 0);
-
-                            imgOnclick(canvas, element, eventCtrlKey, eventShiftKey, img);
-                        } catch (error) {
-                            console.error(error);
-                        }
+                    if (event.ctrlKey) {
+                        runAction(img, element, 'copy-png');
+                    } else if (event.shiftKey) {
+                        runAction(img, element, 'copy-text');
+                    } else if (isTouchOnly()) {
+                        // スマートフォンでは修飾キーが使えないので、メニューを出す
+                        event.stopPropagation();
+                        openMenu(box, img, element);
                     } else {
-                        // Firefoxで幅・高さが指定されていないSVGファイルが描画されないバグを回避
-                        fetch(img.src)
-                            .then(function (response) {
-                                return response.text();
-                            }).then(async (svg) => {
-                                try {
-                                    const parser = new DOMParser();
-                                    const result = parser.parseFromString(svg, 'text/xml');
-                                    const svgElem = result.getElementsByTagName("svg")[0];
-                                    svgElem.setAttribute('width', DEFAULT_SIZE + 'px');
-                                    svgElem.setAttribute('height', DEFAULT_SIZE + 'px');
-                                    const encoded = btoa(new XMLSerializer().serializeToString(svgElem));
-
-                                    img.onload = function () {
-                                        const canvas = document.createElement("canvas");
-                                        canvas.width = img.naturalWidth;
-                                        canvas.height = img.naturalHeight;
-
-                                        const ctx = canvas.getContext("2d");
-                                        //
-
-                                        const tsCondition = document.getElementById('icon-copy-transparent-select').value;
-                                        if (tsCondition == 'lightgray-to-transparent') {
-                                            ctx.drawImage(img, 0, 0);
-                                            const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                                            const data = imagedata.data;
-                                            for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
-                                                if (data[i] >= 240 && data[i + 1] >= 240 && data[i + 2] >= 240 && data[i] === data[i + 1] && data[i + 1] === data[i + 2]) {
-                                                    // data[i] = 0;
-                                                    // data[i + 1] = 0;
-                                                    // data[i + 2] = 0;
-                                                    data[i + 3] = 0; // アルファ値を0にして透明にする
-                                                }
-                                            }
-                                            ctx.putImageData(imagedata, 0, 0);
-                                        } else if (tsCondition == 'white-to-transparent') {
-                                            ctx.drawImage(img, 0, 0);
-                                            const imagedata = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                                            const data = imagedata.data;
-                                            for (let i = 0; i < canvas.width * canvas.height * 4; i += 4) {
-                                                if (data[i] === 255 && data[i + 1] === 255 && data[i + 2] === 255) {
-                                                    data[i + 3] = 0; // アルファ値を0にして透明にする
-                                                }
-                                            }
-                                            ctx.putImageData(imagedata, 0, 0);
-                                        } else if (tsCondition == 'white-background') {
-                                            ctx.beginPath();
-                                            ctx.fillStyle = 'white';
-                                            ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                            ctx.drawImage(img, 0, 0);
-                                        } else if (tsCondition == 'none') {
-                                            ctx.drawImage(img, 0, 0);
-                                        }
-
-                                        // ctx.beginPath();
-                                        // ctx.fillStyle = 'white';
-                                        // ctx.fillRect(0, 0, canvas.width, canvas.height);
-                                        // ctx.drawImage(img, 0, 0);
-
-                                        imgOnclick(canvas, element, eventCtrlKey, eventShiftKey, img);
-                                    };
-
-                                    img.src = 'data:image/svg+xml;base64,' + encoded;
-                                } catch (error) {
-                                    console.error(error);
-                                }
-                            })
+                        runAction(img, element, 'save-png');
                     }
                 };
 
@@ -687,7 +801,21 @@ const parseJson = (term = '', ignore_case = false) => {
                     nameLabel.title = basename(element.path);
                     nameLabel.style.fontSize = '11px';
 
+                    // 保存・コピーのメニューを開くボタン（PC ではマウスを載せたとき、タッチの端末では常に出す）
+                    let more = document.createElement('button');
+                    more.type = 'button';
+                    more.classList.add('icon-more', 'btn', 'btn-light', 'p-0', 'position-absolute', 'top-0', 'end-0');
+                    more.innerText = '⋯';
+                    more.title = '保存・コピーのメニュー';
+                    more.setAttribute('aria-label', '保存・コピーのメニュー（' + basename(element.path) + '）');
+                    more.setAttribute('aria-haspopup', 'menu');
+                    more.addEventListener('click', event => {
+                        event.stopPropagation();
+                        openMenu(more, img, element);
+                    });
+
                     box.appendChild(img);
+                    box.appendChild(more);
                     captionBox.appendChild(captionLabel);
                     box.appendChild(captionBox);
                     nameBox.appendChild(nameLabel);
@@ -723,7 +851,7 @@ const parseJson = (term = '', ignore_case = false) => {
                 img.alt = element.path;
                 img.className = 'img-thumbnail';
                 img.crossOrigin = 'anonymous';
-                img.title = element.path + "\n---\n" + element.description + "\n（クリック：ファイルをDL / Ctrl + クリック：画像をコピー / Shift + クリック：文字列をコピー）";
+                img.title = element.path + "\n---\n" + element.description + "\n（クリック：PNGファイルをDL / Ctrl + クリック：画像をコピー / Shift + クリック：文字列をコピー / 右上の ⋯：保存・コピーのメニュー）";
                 img.src = element.path;
                 return box;
             };
@@ -757,14 +885,14 @@ window.addEventListener('DOMContentLoaded', _ => {
 
     document.querySelectorAll('.alert').forEach((alert) => new bootstrap.Alert(alert));
     toastDict = {
-        'toast-copied-dataurl': new bootstrap.Toast(document.getElementById('toast-copied-dataurl'), {
-            delay: 500,
+        'toast-copied': new bootstrap.Toast(document.getElementById('toast-copied'), {
+            delay: 2000,
         }),
-        'toast-copied-png': new bootstrap.Toast(document.getElementById('toast-copied-png'), {
-            delay: 500,
+        'toast-failed': new bootstrap.Toast(document.getElementById('toast-failed'), {
+            delay: 5000,
         }),
-        'toast-copied-svg': new bootstrap.Toast(document.getElementById('toast-copied-svg'), {
-            delay: 500,
+        'toast-clipboard-item': new bootstrap.Toast(document.getElementById('toast-clipboard-item'), {
+            delay: 5000,
         }),
         'toast-input-keyword': new bootstrap.Toast(document.getElementById('toast-input-keyword'), {
             delay: 10000,

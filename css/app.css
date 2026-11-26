@@ -67,3 +67,44 @@ footer .flex-fill {
 #icon-copy-transparent-label {
     white-space: nowrap;
 }
+
+/* 枠の右上の「⋯」（保存・コピーのメニューを開く） */
+.icon-more {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+    line-height: 20px;
+    border: 1px solid rgba(0, 0, 0, .2);
+    opacity: 0;
+    transition: opacity .15s;
+}
+
+#image-list > div:hover .icon-more,
+#image-list > div:focus-within .icon-more {
+    opacity: 1;
+}
+
+/* タッチの端末（マウスを載せられない）では常に出す */
+@media (hover: none) {
+    .icon-more {
+        opacity: .85;
+    }
+}
+
+/* 保存・コピーのメニュー */
+.icon-menu {
+    position: absolute;
+    z-index: 1060;
+    min-width: 10rem;
+    max-width: calc(100vw - 16px);
+    overflow: hidden;
+}
+
+.icon-menu-title {
+    font-size: 11px;
+}
+
+.icon-menu .btn {
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+}

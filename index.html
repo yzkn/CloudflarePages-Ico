@@ -45,17 +45,17 @@
 <body class="h-100">
     <h1 style="display: none;">Ico</h1>
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 5">
-        <div id="toast-copied-dataurl" class="toast hide text-white bg-success" role="alert" aria-live="assertive"
+        <div id="toast-copied" class="toast hide text-white bg-success" role="alert" aria-live="assertive"
             aria-atomic="true">
-            <div class="toast-body">PNG形式のData URLをクリップボードにコピーしました。</div>
+            <div class="toast-body" id="toast-copied-body">クリップボードにコピーしました。</div>
         </div>
-        <div id="toast-copied-png" class="toast hide text-white bg-success" role="alert" aria-live="assertive"
+        <div id="toast-failed" class="toast hide text-dark bg-warning" role="alert" aria-live="assertive"
             aria-atomic="true">
-            <div class="toast-body">PNG画像をクリップボードにコピーしました。</div>
+            <div class="toast-body" id="toast-failed-body">コピーできませんでした。</div>
         </div>
-        <div id="toast-copied-svg" class="toast hide text-white bg-success" role="alert" aria-live="assertive"
+        <div id="toast-clipboard-item" class="toast hide text-dark bg-warning" role="alert" aria-live="assertive"
             aria-atomic="true">
-            <div class="toast-body">SVG文字列をクリップボードにコピーしました。</div>
+            <div class="toast-body">このブラウザーは画像のクリップボードへのコピーに対応していません。保存してからお使いください。</div>
         </div>
         <div id="toast-input-keyword" class="toast hide text-white bg-info" role="alert" aria-live="assertive"
             aria-atomic="true">
@@ -64,6 +64,7 @@
                     <li>画像クリック: PNGファイルをダウンロード</li>
                     <li>Ctrl + クリック: 画像をクリップボードにコピー</li>
                     <li>Shift + クリック: 文字列をクリップボードにコピー</li>
+                    <li>右上の ⋯（スマートフォンでは画像のタップ）: 保存・コピーのメニュー</li>
                 </ul>
             </div>
         </div>
