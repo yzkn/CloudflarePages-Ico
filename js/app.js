@@ -87,6 +87,12 @@ const retrieveQueryDict = () => {
     return Object.fromEntries(urlSearchParams.entries());
 };
 
+// 大文字・小文字の切り替えの文言（どこで切り替えても同じ表記にする。スイッチを入れると「区別しない」）
+const updateIgnoreCaseLabel = () => {
+    const checked = document.getElementById('icon-search-ignorecase').checked;
+    document.getElementById('icon-search-ignorecase-label').innerText = '大文字/小文字を区別' + (checked ? 'しない' : 'する');
+};
+
 // 検索の条件を URL に書き戻す（?term=…&ic=t&ts=…）。履歴は増やさない。既定の値は書かない。ほかの引数（conn など）は残す
 const updateQueryString = () => {
     const params = new URLSearchParams(window.location.search);
@@ -148,7 +154,7 @@ const loadDataSource = () => {
             "name": "Cryptocurrency Icons"
         },
         {
-            "url": "https://github.com/astrit/css.gg target=",
+            "url": "https://github.com/astrit/css.gg",
             "name": "css.gg"
         },
         {
@@ -974,9 +980,7 @@ window.addEventListener('DOMContentLoaded', _ => {
     loadJson();
 
     document.getElementById('icon-search-ignorecase').addEventListener('change', _ => {
-        const checked = document.getElementById('icon-search-ignorecase').checked;
-        document.getElementById('icon-search-ignorecase-label').innerText = "大文字/小文字を区別"
-            + (checked ? "しない" : "する");
+        updateIgnoreCaseLabel();
         updateQueryString();
     });
     // コピーの設定（透明の扱い）も URL に残す
@@ -1000,12 +1004,11 @@ window.addEventListener('DOMContentLoaded', _ => {
 
     // クエリパラメーターをもとに設定: icon-search-ignorecase
     let ic = retrieveQueryDict()['ic'];
-    if (ic) {
-        if (ic == 't') {
-            document.getElementById('icon-search-ignorecase').checked = true;
-            document.getElementById('icon-search-ignorecase-label').innerText = "大/小文字を区別しない";
-        }
+    if (ic == 't') {
+        document.getElementById('icon-search-ignorecase').checked = true;
     }
+    // ブラウザーが前の状態のスイッチを戻したときも、文言を合わせる
+    updateIgnoreCaseLabel();
 
     // クエリパラメーターをもとに設定: icon-copy-transparent-select
     let ts = retrieveQueryDict()['ts'];
