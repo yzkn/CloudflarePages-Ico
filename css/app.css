@@ -108,3 +108,41 @@ footer .flex-fill {
     padding-top: .5rem;
     padding-bottom: .5rem;
 }
+
+/* お気に入り・最近使った（検索欄の下の帯）。PC 幅では折り返し、スマートフォン幅では横にスクロールする */
+.saved-list {
+    display: flex;
+    flex-flow: row wrap;
+    padding-bottom: .25rem;
+}
+
+.saved-list > div {
+    flex: 0 0 64px;
+    width: 64px;
+}
+
+.saved-list > div:hover .icon-more,
+.saved-list > div:focus-within .icon-more {
+    opacity: 1;
+}
+
+.saved-section summary {
+    cursor: pointer;
+}
+
+@media (max-width: 575.98px) {
+    .saved-list {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+}
+
+/* お気に入りの印（枠の左上の ★） */
+.icon-fav-mark {
+    font-size: 12px;
+    line-height: 1;
+    padding: 1px 2px;
+    color: #f0ad00;
+    text-shadow: 0 0 2px rgba(0, 0, 0, .6);
+    pointer-events: none;
+}
