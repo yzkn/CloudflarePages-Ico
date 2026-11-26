@@ -302,12 +302,22 @@ const loadDataSource = () => {
     });
 };
 
+// list.json は { prefixes: [出典の前置き...], tree: [[出典の番号, path の残り, 説明], ...] }（src/compact-list.py が作る）。
+// 古い形 { tree: [{ path, description }, ...] } もそのまま読む
+const expandList = json => {
+    if (!Array.isArray(json.prefixes)) {
+        return json;
+    }
+    const prefixes = json.prefixes;
+    return { tree: json.tree.map(([i, rest, description]) => ({ path: prefixes[i] + rest, description })) };
+};
+
 const loadJson = (term = '', ignore_case = false) => {
     if (stored == null) {
         fetch(apiUri)
             .then(response => response.json())
             .then(json => {
-                stored = json;
+                stored = expandList(json);
                 initAutocomplete();
             });
     }
