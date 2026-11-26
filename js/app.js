@@ -464,27 +464,31 @@ const saveBlob = (blob, name) => {
     setTimeout(() => URL.revokeObjectURL(objectUrl), 10000);
 };
 
-// SVG を元のファイルのまま保存する（PNG に変えない）
+// SVG を元のファイルのまま保存する（PNG に変えない）。できたら true
 const saveSvg = element => {
-    fetch(element.path)
+    return fetch(element.path)
         .then(response => {
             if (!response.ok) {
                 throw new Error('HTTP ' + response.status);
             }
             return response.blob();
         })
-        .then(blob => saveBlob(blob, basename(element.path) + '.svg'))
+        .then(blob => {
+            saveBlob(blob, basename(element.path) + '.svg');
+            return true;
+        })
         .catch(error => {
             console.error(error);
             showFailed('SVG を保存できませんでした（' + error.message + '）。');
+            return false;
         });
 };
 
-// 画像（PNG）をコピーする。Safari はクリックの中で write を呼ぶ必要があるので、Blob の Promise を渡す
+// 画像（PNG）をコピーする。Safari はクリックの中で write を呼ぶ必要があるので、Blob の Promise を渡す。できたら true
 const copyPng = canvas => {
     if (!hasClipboardItem()) {
         toastDict['toast-clipboard-item'].show();
-        return;
+        return false;
     }
     const blobPromise = new Promise((resolve, reject) => {
         try {
@@ -494,15 +498,19 @@ const copyPng = canvas => {
             reject(error);
         }
     });
-    navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })])
-        .then(() => showCopied('PNG画像をクリップボードにコピーしました。'))
+    return navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })])
+        .then(() => {
+            showCopied('PNG画像をクリップボードにコピーしました。');
+            return true;
+        })
         .catch(error => {
             console.error(error);
             showFailed('画像をコピーできませんでした（' + error.message + '）。');
+            return false;
         });
 };
 
-// 文字列をコピーする。ClipboardItem が無ければ writeText で行う
+// 文字列をコピーする。ClipboardItem が無ければ writeText で行う。できたら true
 const copyText = (textPromise, message) => {
     const text = Promise.resolve(textPromise);
     let done;
@@ -517,12 +525,16 @@ const copyText = (textPromise, message) => {
         done = text.then(t => navigator.clipboard.writeText(t));
     } else {
         toastDict['toast-clipboard-item'].show();
-        return;
+        return false;
     }
-    done.then(() => showCopied(message))
+    return done.then(() => {
+        showCopied(message);
+        return true;
+    })
         .catch(error => {
             console.error(error);
             showFailed('文字列をコピーできませんでした（' + error.message + '）。');
+            return false;
         });
 };
 
@@ -569,67 +581,167 @@ const drawToCanvas = img => {
 // canvas を使う操作: 'save-png'（PNG で保存）/ 'copy-png'（画像をコピー）/ 'copy-text'（PNG の Data URL をコピー）
 const imgOnclick = (canvas, element, action) => {
     if (action === 'copy-png') {
-        copyPng(canvas);
+        return copyPng(canvas);
     } else if (action === 'copy-text') {
         // PNG形式のData URL
-        copyText(canvas.toDataURL('image/png'), 'PNG形式のData URLをクリップボードにコピーしました。');
+        return copyText(canvas.toDataURL('image/png'), 'PNG形式のData URLをクリップボードにコピーしました。');
     } else {
         // PNGファイルダウンロード
         const a = document.createElement('a');
         a.href = canvas.toDataURL('image/png');
         a.setAttribute('download', basename(element.path) + '.png');
         a.dispatchEvent(new MouseEvent('click'));
+        return true;
     }
 };
 
-// 操作を行う。action: 'save-png' / 'save-svg' / 'copy-png' / 'copy-text'
+// 操作を行う。action: 'save-png' / 'save-svg' / 'copy-png' / 'copy-text'。
+// できたら、最近使ったアイコンの先頭に置く
 const runAction = (img, element, action) => {
+    Promise.resolve(runActionCore(img, element, action)).then(ok => {
+        if (ok) {
+            addRecent(element);
+        }
+    });
+};
+
+// 操作の本体。できたら true（または true になる Promise）
+const runActionCore = (img, element, action) => {
     if (action === 'save-svg') {
-        saveSvg(element);
-        return;
+        return saveSvg(element);
     }
     if (action === 'copy-text' && isSvg(img, element)) {
         // SVGのソース（元のファイル）
-        copyText(fetch(element.path).then(response => {
+        return copyText(fetch(element.path).then(response => {
             if (!response.ok) {
                 throw new Error('HTTP ' + response.status);
             }
             return response.text();
         }), 'SVG文字列をクリップボードにコピーしました。');
-        return;
     }
 
     const withCanvas = () => {
         try {
-            imgOnclick(drawToCanvas(img), element, action);
+            return imgOnclick(drawToCanvas(img), element, action);
         } catch (error) {
             console.error(error);
             showFailed('画像を扱えませんでした（' + error.message + '）。');
+            return false;
         }
     };
 
     if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        withCanvas();
-        return;
+        return withCanvas();
     }
     // Firefoxで幅・高さが指定されていないSVGファイルが描画されないバグを回避
-    fetch(img.src)
+    return fetch(img.src)
         .then(response => response.text())
-        .then(svg => {
+        .then(svg => new Promise(resolve => {
             const parser = new DOMParser();
             const result = parser.parseFromString(svg, 'text/xml');
             const svgElem = result.getElementsByTagName('svg')[0];
             svgElem.setAttribute('width', DEFAULT_SIZE + 'px');
             svgElem.setAttribute('height', DEFAULT_SIZE + 'px');
             const encoded = btoa(new XMLSerializer().serializeToString(svgElem));
-            img.onload = withCanvas;
+            img.onload = () => resolve(withCanvas());
             img.src = 'data:image/svg+xml;base64,' + encoded;
-        })
+        }))
         .catch(error => {
             console.error(error);
             showFailed('画像を扱えませんでした（' + error.message + '）。');
+            return false;
         });
 };
+
+// お気に入り・最近使ったアイコン（この端末の localStorage だけに持つ。読めない・書けないときは、この画面の間だけ覚える）
+const favoritesKey = 'i-co.favorites';
+const recentKey = 'i-co.recent';
+const recentLimit = 24;
+const favoritesLimit = 200;
+
+const readSaved = key => {
+    try {
+        const value = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(value) ? value.filter(item => item && typeof item.path === 'string') : [];
+    } catch (error) {
+        return [];
+    }
+};
+const writeSaved = (key, items) => {
+    try {
+        localStorage.setItem(key, JSON.stringify(items));
+    } catch (error) {
+        console.warn(error);
+    }
+};
+let favorites = readSaved(favoritesKey);
+let recent = readSaved(recentKey);
+
+// 保存するのは path と description だけ（画像は持たない）
+const savedItem = element => ({ path: element.path, description: typeof element.description === 'string' ? element.description : '' });
+const isFavorite = path => favorites.some(item => item.path === path);
+
+const addRecent = element => {
+    recent = [savedItem(element)].concat(recent.filter(item => item.path !== element.path)).slice(0, recentLimit);
+    writeSaved(recentKey, recent);
+    renderSaved();
+};
+
+const clearRecent = () => {
+    recent = [];
+    writeSaved(recentKey, recent);
+    renderSaved();
+};
+
+// 枠の左上の ★（お気に入りの印）を、いまの状態に合わせる
+const updateFavMarks = () => {
+    document.querySelectorAll('.icon-fav-mark').forEach(mark => {
+        mark.classList.toggle('d-none', !isFavorite(mark.dataset.path));
+    });
+};
+
+const toggleFavorite = element => {
+    if (isFavorite(element.path)) {
+        favorites = favorites.filter(item => item.path !== element.path);
+        showCopied('お気に入りから外しました。');
+    } else {
+        favorites = [savedItem(element)].concat(favorites).slice(0, favoritesLimit);
+        showCopied('お気に入りに追加しました。');
+    }
+    writeSaved(favoritesKey, favorites);
+    renderSaved();
+    updateFavMarks();
+};
+
+// 検索欄の下の帯（お気に入り・最近使った）。どちらも空なら出さない
+const renderSaved = () => {
+    const container = document.getElementById('saved-icons');
+    if (!container) {
+        return;
+    }
+    const fill = (listId, countId, sectionId, items) => {
+        const list = document.getElementById(listId);
+        list.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        items.forEach(item => fragment.appendChild(renderBox(item)));
+        list.appendChild(fragment);
+        document.getElementById(countId).innerText = items.length;
+        document.getElementById(sectionId).classList.toggle('d-none', items.length === 0);
+    };
+    fill('favorite-list', 'favorite-count', 'saved-favorites', favorites);
+    fill('recent-list', 'recent-count', 'saved-recent', recent);
+    container.classList.toggle('d-none', favorites.length === 0 && recent.length === 0);
+};
+
+// ほかのタブで変えたときも合わせる
+window.addEventListener('storage', event => {
+    if (event.key === favoritesKey || event.key === recentKey) {
+        favorites = readSaved(favoritesKey);
+        recent = readSaved(recentKey);
+        renderSaved();
+        updateFavMarks();
+    }
+});
 
 // 保存・コピーのメニュー（1 つを使い回す）。スマートフォンでは画像のタップで、PC では右上の ⋯ で開く
 let menuTarget = null;
@@ -638,6 +750,7 @@ const menuActions = [
     ['save-svg', 'SVG で保存'],
     ['copy-png', '画像をコピー'],
     ['copy-text', '文字列をコピー'],
+    ['toggle-fav', 'お気に入りに追加'],
 ];
 const closeMenu = restoreFocus => {
     const menu = document.getElementById('icon-menu');
@@ -676,7 +789,12 @@ const getMenu = () => {
             event.stopPropagation();
             const target = menuTarget;
             closeMenu(false);
-            if (target) {
+            if (!target) {
+                return;
+            }
+            if (action === 'toggle-fav') {
+                toggleFavorite(target.element);
+            } else {
                 runAction(target.img, target.element, action);
             }
         });
@@ -708,6 +826,8 @@ const openMenu = (anchor, img, element) => {
     document.getElementById('icon-menu-title').innerText = basename(element.path);
     // 「SVG で保存」は SVG のときだけ出す
     menu.querySelector('[data-action="save-svg"]').classList.toggle('d-none', !isSvg(img, element));
+    // お気に入りの項目は、いまの状態に合わせた文言にする
+    menu.querySelector('[data-action="toggle-fav"]').innerText = isFavorite(element.path) ? '★ お気に入りから外す' : '☆ お気に入りに追加';
     menu.classList.remove('d-none');
 
     // 枠の下に出す。画面からはみ出すときは上に出す・左右に寄せる
@@ -756,6 +876,138 @@ const updateMoreButton = (remaining, onClick) => {
     }
     more.innerText = 'さらに表示（残り ' + remaining + ' 件）';
     more.onclick = onClick;
+};
+
+// 1 件分の枠を作る（検索の結果と、お気に入り・最近使った帯で使う）。枠は先に並び順どおりに置き、画像は読み込めたら枠に入れる。
+// onDone は最初の読み込みの成否が決まったときに 1 回呼ぶ
+const renderBox = (element, onDone = () => {}) => {
+    // 最初の読み込みの成否を 1 回だけ数える（クリックで src を差し替えたときに数え直さない）
+    let settled = false;
+    let box = document.createElement('div');
+    box.classList.add('position-relative');
+    box.height = 64;
+    box.width = 64;
+    box.style.minWidth = '64px';
+    box.style.minHeight = '64px';
+
+    let img = document.createElement('img');
+    img.onclick = (event) => {
+        const img = event.target;
+        if (event.ctrlKey) {
+            runAction(img, element, 'copy-png');
+        } else if (event.shiftKey) {
+            runAction(img, element, 'copy-text');
+        } else if (isTouchOnly()) {
+            // スマートフォンでは修飾キーが使えないので、メニューを出す
+            event.stopPropagation();
+            openMenu(box, img, element);
+        } else {
+            runAction(img, element, 'save-png');
+        }
+    };
+
+    img.onload = () => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+        const imgSize = (width > 0 && height > 0) ? String(width) + 'x' + String(height) : '';
+
+        let captionBox = document.createElement('div');
+        captionBox.classList.add('position-absolute');
+        captionBox.classList.add('w-100');
+        // 名前を枠の下に出すので、寸法は画像の下端に合わせる
+        captionBox.style.top = '64px';
+        captionBox.style.transform = 'translateY(-100%)';
+
+        let captionLabel = document.createElement('p');
+        captionLabel.classList.add('m-0');
+        captionLabel.classList.add('px-1');
+        captionLabel.classList.add('small');
+        captionLabel.classList.add('text-end');
+        captionLabel.classList.add('text-light');
+        captionLabel.innerHTML = ((img.src).endsWith('.svg') ? 'SVG' : 'PNG') + (imgSize == '' ? '' : '<br>' + imgSize);
+        captionLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
+        captionLabel.style.fontSize = '10px';
+
+        let nameBox = document.createElement('div');
+        nameBox.classList.add('w-100');
+
+        // 名前は枠の下に 1 行で出す（長いものは省略記号。全体はツールチップ）
+        let nameLabel = document.createElement('p');
+        nameLabel.classList.add('m-0');
+        nameLabel.classList.add('px-1');
+        nameLabel.classList.add('text-center');
+        nameLabel.classList.add('text-truncate');
+        nameLabel.classList.add('text-body');
+        nameLabel.innerText = basename(element.path);
+        nameLabel.title = basename(element.path);
+        nameLabel.style.fontSize = '11px';
+
+        // 保存・コピーのメニューを開くボタン（PC ではマウスを載せたとき、タッチの端末では常に出す）
+        let more = document.createElement('button');
+        more.type = 'button';
+        more.classList.add('icon-more', 'btn', 'btn-light', 'p-0', 'position-absolute', 'top-0', 'end-0');
+        more.innerText = '⋯';
+        more.title = '保存・コピーのメニュー';
+        more.setAttribute('aria-label', '保存・コピーのメニュー（' + basename(element.path) + '）');
+        more.setAttribute('aria-haspopup', 'menu');
+        more.addEventListener('click', event => {
+            event.stopPropagation();
+            openMenu(more, img, element);
+        });
+
+        // お気に入りの印（左上の ★。押せない）
+        let favMark = document.createElement('span');
+        favMark.classList.add('icon-fav-mark', 'position-absolute', 'top-0', 'start-0');
+        favMark.dataset.path = element.path;
+        favMark.innerText = '★';
+        favMark.setAttribute('aria-label', 'お気に入り');
+        favMark.classList.toggle('d-none', !isFavorite(element.path));
+
+        box.appendChild(img);
+        box.appendChild(more);
+        box.appendChild(favMark);
+        captionBox.appendChild(captionLabel);
+        box.appendChild(captionBox);
+        nameBox.appendChild(nameLabel);
+        box.appendChild(nameBox);
+
+        onDone();
+    }
+
+    img.onerror = () => {
+        if (settled) {
+            return;
+        }
+        settled = true;
+        // 読み込めない画像も完了に数える（数えないとスピナー・検索ボタンが戻らない）
+        let failedBox = document.createElement('div');
+        failedBox.classList.add('img-thumbnail');
+        failedBox.classList.add('d-flex');
+        failedBox.classList.add('align-items-center');
+        failedBox.classList.add('justify-content-center');
+        failedBox.classList.add('text-center');
+        failedBox.classList.add('text-secondary');
+        failedBox.style.width = '64px';
+        failedBox.style.height = '64px';
+        failedBox.style.fontSize = '10px';
+        failedBox.innerText = '読み込めません';
+        failedBox.title = element.path + "\n---\n" + element.description + "\n（画像を読み込めませんでした）";
+
+        box.appendChild(failedBox);
+
+        onDone();
+    };
+
+    img.alt = element.path;
+    img.className = 'img-thumbnail';
+    img.crossOrigin = 'anonymous';
+    img.title = element.path + "\n---\n" + element.description + "\n（クリック：PNGファイルをDL / Ctrl + クリック：画像をコピー / Shift + クリック：文字列をコピー / 右上の ⋯：保存・コピーのメニュー）";
+    img.src = element.path;
+    return box;
 };
 
 const parseJson = (term = '', ignore_case = false) => {
@@ -815,133 +1067,12 @@ const parseJson = (term = '', ignore_case = false) => {
                     hideSpinner();
                 }
             };
-            // 1 件分の枠を作る。枠は先に並び順どおりに置き、画像は読み込めたら枠に入れる
-            const renderBox = element => {
-                // 最初の読み込みの成否を 1 回だけ数える（クリックで src を差し替えたときに数え直さない）
-                let settled = false;
-                let box = document.createElement('div');
-                box.classList.add('position-relative');
-                box.height = 64;
-                box.width = 64;
-                box.style.minWidth = '64px';
-                box.style.minHeight = '64px';
-
-                let img = document.createElement('img');
-                img.onclick = (event) => {
-                    const img = event.target;
-                    if (event.ctrlKey) {
-                        runAction(img, element, 'copy-png');
-                    } else if (event.shiftKey) {
-                        runAction(img, element, 'copy-text');
-                    } else if (isTouchOnly()) {
-                        // スマートフォンでは修飾キーが使えないので、メニューを出す
-                        event.stopPropagation();
-                        openMenu(box, img, element);
-                    } else {
-                        runAction(img, element, 'save-png');
-                    }
-                };
-
-                img.onload = () => {
-                    if (settled) {
-                        return;
-                    }
-                    settled = true;
-                    const width = img.naturalWidth;
-                    const height = img.naturalHeight;
-                    const imgSize = (width > 0 && height > 0) ? String(width) + 'x' + String(height) : '';
-
-                    let captionBox = document.createElement('div');
-                    captionBox.classList.add('position-absolute');
-                    captionBox.classList.add('w-100');
-                    // 名前を枠の下に出すので、寸法は画像の下端に合わせる
-                    captionBox.style.top = '64px';
-                    captionBox.style.transform = 'translateY(-100%)';
-
-                    let captionLabel = document.createElement('p');
-                    captionLabel.classList.add('m-0');
-                    captionLabel.classList.add('px-1');
-                    captionLabel.classList.add('small');
-                    captionLabel.classList.add('text-end');
-                    captionLabel.classList.add('text-light');
-                    captionLabel.innerHTML = ((img.src).endsWith('.svg') ? 'SVG' : 'PNG') + (imgSize == '' ? '' : '<br>' + imgSize);
-                    captionLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
-                    captionLabel.style.fontSize = '10px';
-
-                    let nameBox = document.createElement('div');
-                    nameBox.classList.add('w-100');
-
-                    // 名前は枠の下に 1 行で出す（長いものは省略記号。全体はツールチップ）
-                    let nameLabel = document.createElement('p');
-                    nameLabel.classList.add('m-0');
-                    nameLabel.classList.add('px-1');
-                    nameLabel.classList.add('text-center');
-                    nameLabel.classList.add('text-truncate');
-                    nameLabel.classList.add('text-body');
-                    nameLabel.innerText = basename(element.path);
-                    nameLabel.title = basename(element.path);
-                    nameLabel.style.fontSize = '11px';
-
-                    // 保存・コピーのメニューを開くボタン（PC ではマウスを載せたとき、タッチの端末では常に出す）
-                    let more = document.createElement('button');
-                    more.type = 'button';
-                    more.classList.add('icon-more', 'btn', 'btn-light', 'p-0', 'position-absolute', 'top-0', 'end-0');
-                    more.innerText = '⋯';
-                    more.title = '保存・コピーのメニュー';
-                    more.setAttribute('aria-label', '保存・コピーのメニュー（' + basename(element.path) + '）');
-                    more.setAttribute('aria-haspopup', 'menu');
-                    more.addEventListener('click', event => {
-                        event.stopPropagation();
-                        openMenu(more, img, element);
-                    });
-
-                    box.appendChild(img);
-                    box.appendChild(more);
-                    captionBox.appendChild(captionLabel);
-                    box.appendChild(captionBox);
-                    nameBox.appendChild(nameLabel);
-                    box.appendChild(nameBox);
-
-                    countProcessed();
-                }
-
-                img.onerror = () => {
-                    if (settled) {
-                        return;
-                    }
-                    settled = true;
-                    // 読み込めない画像も完了に数える（数えないとスピナー・検索ボタンが戻らない）
-                    let failedBox = document.createElement('div');
-                    failedBox.classList.add('img-thumbnail');
-                    failedBox.classList.add('d-flex');
-                    failedBox.classList.add('align-items-center');
-                    failedBox.classList.add('justify-content-center');
-                    failedBox.classList.add('text-center');
-                    failedBox.classList.add('text-secondary');
-                    failedBox.style.width = '64px';
-                    failedBox.style.height = '64px';
-                    failedBox.style.fontSize = '10px';
-                    failedBox.innerText = '読み込めません';
-                    failedBox.title = element.path + "\n---\n" + element.description + "\n（画像を読み込めませんでした）";
-
-                    box.appendChild(failedBox);
-
-                    countProcessed();
-                };
-
-                img.alt = element.path;
-                img.className = 'img-thumbnail';
-                img.crossOrigin = 'anonymous';
-                img.title = element.path + "\n---\n" + element.description + "\n（クリック：PNGファイルをDL / Ctrl + クリック：画像をコピー / Shift + クリック：文字列をコピー / 右上の ⋯：保存・コピーのメニュー）";
-                img.src = element.path;
-                return box;
-            };
             const renderPage = () => {
                 const fragment = document.createDocumentFragment();
                 const page = sorted.slice(rendered, rendered + pageSize);
                 rendered += page.length;
                 page.forEach(element => {
-                    fragment.appendChild(renderBox(element));
+                    fragment.appendChild(renderBox(element, countProcessed));
                 });
                 imageList.appendChild(fragment);
                 updateMoreButton(sorted.length - rendered, () => {
@@ -978,6 +1109,15 @@ const scheduleSearch = () => {
 window.addEventListener('DOMContentLoaded', _ => {
     loadDataSource();
     loadJson();
+
+    // お気に入り・最近使った帯（検索しなくても出す）
+    renderSaved();
+    document.getElementById('recent-clear').addEventListener('click', event => {
+        // summary の中のボタンなので、折りたたみの切り替えを止める
+        event.preventDefault();
+        event.stopPropagation();
+        clearRecent();
+    });
 
     document.getElementById('icon-search-ignorecase').addEventListener('change', _ => {
         updateIgnoreCaseLabel();
