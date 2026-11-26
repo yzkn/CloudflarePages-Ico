@@ -962,6 +962,7 @@ const scheduleSearch = () => {
             renderSourceFilter({}, 0, '', false);
             showResultCount(null);
             hideSpinner();
+            updateQueryString(); // 語を消したら URL の term も消す
             return;
         }
         parseJson(term, document.getElementById('icon-search-ignorecase').checked);
