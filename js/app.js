@@ -312,28 +312,105 @@ const expandList = json => {
     return { tree: json.tree.map(([i, rest, description]) => ({ path: prefixes[i] + rest, description })) };
 };
 
-const loadJson = (term = '', ignore_case = false) => {
-    if (stored == null) {
-        fetch(apiUri)
+// 検索用の索引（初回に 1 回だけ作る）。並び順（path の大文字で比べた順）に並べておき、
+// 各件の「GitHub の前置きを除いた path」と description をつないだ文字列（そのままと小文字）と、出典のキーを前もって持つ
+let searchIndex = null;
+// 補完の候補（重複を除いたもの）
+let suggestions = [];
+// list.json の取得は 1 回だけ（打つたびの検索で、読み込み中に何度も取得しない）
+let loading = null;
+
+const CONNECTOR_PATH = 'asset/Power_Platform_Connector/';
+
+const buildIndex = () => {
+    const compare = (a, b) => a.upper < b.upper ? -1 : (a.upper > b.upper ? 1 : 0);
+    searchIndex = stored.tree
+        .map(element => {
+            const text = element.path.replace(GITHUB_BASEURL, '') + '\n' + element.description;
+            return {
+                element,
+                text,
+                lower: text.toLowerCase(),
+                source: sourceKey(element.path),
+                connector: element.path.includes(CONNECTOR_PATH),
+                upper: element.path.toUpperCase(),
+            };
+        })
+        .sort(compare);
+
+    const seen = new Set();
+    stored.tree.forEach(element => {
+        const ssv = element.path.replace(GITHUB_BASEURL, '').replaceAll('/', ' ').replace('.png', '').replace('.svg', '').split(' ');
+        const value = ssv[0] + (ssv[0] == ssv[1] ? '' : ' ' + ssv[1]) + ' ' + ssv[ssv.length - 1];
+        if (!seen.has(value)) {
+            seen.add(value);
+            suggestions.push({ value, lower: value.toLowerCase() });
+        }
+    });
+};
+
+const ensureLoaded = () => {
+    if (loading == null) {
+        loading = fetch(apiUri)
             .then(response => response.json())
             .then(json => {
                 stored = expandList(json);
-                initAutocomplete();
+                buildIndex();
+                updateSuggestions(document.getElementById('icon-search-term').value);
+            })
+            .catch(error => {
+                loading = null; // 次の検索で取り直す
+                hideSpinner();
+                throw error;
             });
     }
+    return loading;
 };
 
-const initAutocomplete = () => {
-    if (stored != null) {
-        const searchList = document.getElementById('search-list');
-        const treeItems = stored.tree;
-        treeItems.forEach(element => {
-            const option = document.createElement('option');
-            const item = element.path.replace(GITHUB_BASEURL, '').replaceAll('/', ' ').replace('.png', '').replace('.svg', '');
-            const ssv = item.split(' ');
-            option.value = ssv[0] + (ssv[0] == ssv[1] ? '' : ' ' + ssv[1]) + ' ' + ssv[ssv.length - 1];
-            searchList.appendChild(option);
-        });
+// 起動時に読み込みを始める（索引も作る）
+const loadJson = () => {
+    ensureLoaded().catch(error => console.error(error));
+};
+
+// 補完の候補: 2 文字以上になってから、当たるもの（前方一致を先に）の上位 suggestionLimit 件だけを置く
+const suggestionLimit = 50;
+const updateSuggestions = value => {
+    const searchList = document.getElementById('search-list');
+    searchList.innerHTML = '';
+    const v = value.trim().toLowerCase();
+    if (v.length < 2 || searchIndex == null) {
+        return;
+    }
+    const prefix = [];
+    const contains = [];
+    for (const s of suggestions) {
+        if (s.lower.startsWith(v)) {
+            prefix.push(s.value);
+            if (prefix.length >= suggestionLimit) {
+                break;
+            }
+        } else if (contains.length < suggestionLimit && s.lower.includes(v)) {
+            contains.push(s.value);
+        }
+    }
+    const fragment = document.createDocumentFragment();
+    prefix.concat(contains).slice(0, suggestionLimit).forEach(value => {
+        const option = document.createElement('option');
+        option.value = value;
+        fragment.appendChild(option);
+    });
+    searchList.appendChild(fragment);
+};
+
+// 当たった件数の表示
+const showResultCount = count => {
+    const label = document.getElementById('result-count');
+    if (count == null) {
+        label.innerText = '';
+        label.classList.add('d-none');
+    } else {
+        label.innerText = count + ' 件';
+        label.classList.remove('d-none');
     }
 };
 
@@ -434,10 +511,9 @@ const updateMoreButton = (remaining, onClick) => {
 };
 
 const parseJson = (term = '', ignore_case = false) => {
-    if (stored == null) {
-        setTimeout(() => {
-            parseJson(term, ignore_case);
-        }, 500);
+    if (searchIndex == null) {
+        showSpinner();
+        ensureLoaded().then(() => parseJson(term, ignore_case)).catch(error => console.error(error));
     } else {
         showSpinner();
         const generation = ++searchGeneration;
@@ -446,39 +522,20 @@ const parseJson = (term = '', ignore_case = false) => {
         imageList.innerHTML = '';
         updateMoreButton(0);
 
-        let filtered = stored.tree.filter((element) => {
-            return ignore_case
-                ?
-                term.toLowerCase()
-                    .split(/\s+/)
-                    .map(t => element.path.replace(GITHUB_BASEURL, '').toLowerCase().includes(t) || element.description.toLowerCase().includes(t))
-                    .every(t => t === true)
-                :
-                term.split(/\s+/)
-                    .map(t => element.path.replace(GITHUB_BASEURL, '').includes(t) || element.description.includes(t))
-                    .every(t => t === true)
-        });
+        // 語は空白で区切り、すべてを含むものに絞る（索引は並べ替え済みなので、結果も並び順どおり）
+        const terms = (ignore_case ? term.toLowerCase() : term).split(/\s+/).filter(t => t !== '');
+        const field = ignore_case ? 'lower' : 'text';
+        let filtered = searchIndex.filter(entry => terms.every(t => entry[field].includes(t)));
 
-        let conn = retrieveQueryDict()['conn'];
-        if (conn) {
-            if (conn == 't') {
-                console.log('conn');
-            } else {
-                filtered = filtered.filter((element) => {
-                    return (!element.path.includes('asset/Power_Platform_Connector/'));
-                });
-            }
-        } else {
-            filtered = filtered.filter((element) => {
-                return (!element.path.includes('asset/Power_Platform_Connector/'));
-            });
+        // Power Platform のコネクタは ?conn=t のときだけ出す
+        if (retrieveQueryDict()['conn'] != 't') {
+            filtered = filtered.filter(entry => !entry.connector);
         }
 
         // 出典ごとの件数（チップに出す）。キーワードで絞ったあと、出典で絞る前の数
         const counts = {};
-        filtered.forEach(element => {
-            const key = sourceKey(element.path);
-            counts[key] = (counts[key] || 0) + 1;
+        filtered.forEach(entry => {
+            counts[entry.source] = (counts[entry.source] || 0) + 1;
         });
         // 今回の結果に無い出典の選択は外す（チップが消えて外せなくなるため）
         selectedSources.forEach(key => {
@@ -489,22 +546,13 @@ const parseJson = (term = '', ignore_case = false) => {
         renderSourceFilter(counts, filtered.length, term, ignore_case);
 
         if (selectedSources.size > 0) {
-            filtered = filtered.filter(element => selectedSources.has(sourceKey(element.path)));
+            filtered = filtered.filter(entry => selectedSources.has(entry.source));
         }
+        showResultCount(filtered.length);
         if (filtered.length == 0) {
             hideSpinner();
         } else {
-            const sorted = filtered.sort((a, b) => {
-                const na = a.path.toUpperCase();
-                const nb = b.path.toUpperCase();
-                if (na < nb) {
-                    return -1;
-                } else if (na > nb) {
-                    return 1;
-                } else {
-                    return 0;
-                }
-            });
+            const sorted = filtered.map(entry => entry.element);
 
             // 置いた件数と、そのうち画像の読み込みが終わった（失敗も含む）件数
             let rendered = 0;
@@ -755,6 +803,26 @@ const parseJson = (term = '', ignore_case = false) => {
     }
 };
 
+const typingDelay = 200;
+let typingTimer = null;
+const scheduleSearch = () => {
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+        const term = document.getElementById('icon-search-term').value;
+        if (term.trim() === '') {
+            // 結果と件数を消す（空のまま全件を出さない。全件は Search ボタンで出せる）
+            searchGeneration++;
+            document.getElementById('image-list').innerHTML = '';
+            updateMoreButton(0);
+            renderSourceFilter({}, 0, '', false);
+            showResultCount(null);
+            hideSpinner();
+            return;
+        }
+        parseJson(term, document.getElementById('icon-search-ignorecase').checked);
+    }, typingDelay);
+};
+
 window.addEventListener('DOMContentLoaded', _ => {
     loadDataSource();
     loadJson();
@@ -821,6 +889,18 @@ window.addEventListener('DOMContentLoaded', _ => {
     document.getElementById('icon-search-term').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             document.getElementById('icon-search').dispatchEvent(new Event('click'));
+        }
+    });
+
+    // 打つたびに絞り込む（入力が止まって typingDelay ms 後）。空にしたら結果を消す
+    document.getElementById('icon-search-term').addEventListener('input', e => {
+        updateSuggestions(e.target.value);
+        scheduleSearch();
+    });
+    // 大文字・小文字の切り替えも、入力があれば検索しなおす
+    document.getElementById('icon-search-ignorecase').addEventListener('change', _ => {
+        if (document.getElementById('icon-search-term').value.trim() !== '') {
+            scheduleSearch();
         }
     });
 });
